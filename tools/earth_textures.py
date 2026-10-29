@@ -19,9 +19,9 @@ out = Path(__file__).resolve().parent.parent / "public" / "assets" / "earth"
 out.mkdir(parents=True, exist_ok=True)
 
 jobs = [
-    ("world.200412.3x5400x2700.jpg", "day", "RGB", (4096, 2048)),
+    ("world.200412.3x5400x2700.jpg", "day", "RGB", (5400, 2700)),    # full source resolution
     ("8k_earth_nightmap.jpg", "night", "RGB", (4096, 2048)),
-    ("8k_earth_clouds.jpg", "clouds", "L", (4096, 2048)),
+    ("8k_earth_clouds.jpg", "clouds", "L", (5400, 2700)),
     ("2k_earth_normal_map.tif", "normal", "RGB", None),
     ("2k_earth_specular_map.tif", "specular", "L", None),
 ]

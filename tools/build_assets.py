@@ -2,7 +2,7 @@
 Build binary assets for the 3D site.
 
   python tools/build_assets.py galaxies <EigenGalactic dir>
-      -> public/assets/galaxies.jpg   16×16 atlas of 128px colour Galaxy Zoo 2 cutouts.
+      -> public/assets/galaxies.jpg   16×16 atlas of 256px colour Galaxy Zoo 2 cutouts.
          Slots 0..47 are the held-out test galaxies from EigenGalactic/export_web.py, in
          the same order as eigengalaxies.bin; the rest are training-set galaxies.
       -> public/assets/galaxies-gray.bin   the 64×64 grayscale PCA input for every slot,
@@ -50,7 +50,7 @@ def galaxies(eg_dir):
 
     backdrop_pool = [r for r in rest if bright_enough(r)]
 
-    tile, grid = 128, 16
+    tile, grid = 256, 16
     yy, xx = np.mgrid[0:tile, 0:tile]
     vignette = np.clip(1.15 - np.hypot(xx - tile / 2 + 0.5, yy - tile / 2 + 0.5) / (tile / 2), 0, 1)[..., None] ** 0.8
 
@@ -59,7 +59,7 @@ def galaxies(eg_dir):
         p = p if os.path.exists(p) else os.path.join(data_root, p)
         im = Image.open(p).convert("RGB")
         w, h = im.size
-        c = int(min(w, h) * 0.5)  # GZ2 cutouts are centred; keep the middle half
+        c = int(min(w, h) * 0.6)  # GZ2 cutouts are centred; ~254 px of the 424 px original = native resolution
         im = im.crop(((w - c) // 2, (h - c) // 2, (w + c) // 2, (h + c) // 2)).resize((tile, tile), Image.LANCZOS)
         # Black-level each channel so the sky (and any colour cast) blends away additively on black.
         a = np.asarray(im).astype(np.float32)
