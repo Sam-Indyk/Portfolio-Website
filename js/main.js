@@ -42,21 +42,35 @@
   // ---------- EigenGalaxy preview tiles ----------
   const prev = document.getElementById("eg-preview");
   if (prev && window.GalaxyGen) {
-    const N = 48, rng = GalaxyGen.rng(7);
-    const tiles = Array.from({ length: 8 }, () => {
-      const c = document.createElement("canvas");
-      GalaxyGen.paint(c, GalaxyGen.make(N, rng), N);
-      prev.appendChild(c);
-      return c;
+    // Real held-out Galaxy Zoo 2 galaxies from the exported basis; procedural if unavailable.
+    const real = Promise.all([
+      fetch("demos/eigengalaxy/data/eigengalaxies.json").then((r) => r.json()),
+      fetch("demos/eigengalaxy/data/eigengalaxies.bin").then((r) => r.arrayBuffer()),
+    ]).then(([meta, buf]) => {
+      const n = meta.image_size[0], d = n * n, t = meta.layout.test;
+      const px = new Uint8Array(buf, t.offset, t.count);
+      let j = 0;
+      return { N: n, next: () => Float32Array.from(px.subarray((j % meta.n_test) * d, (j++ % meta.n_test) * d + d), (v) => v / 255) };
+    }).catch(() => {
+      const rng = GalaxyGen.rng(7);
+      return { N: 48, next: () => GalaxyGen.make(48, rng) };
     });
-    if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      let i = 0;
-      setInterval(() => {
-        const c = tiles[i++ % tiles.length];
-        c.animate([{ opacity: 1 }, { opacity: 0.1 }, { opacity: 1 }], { duration: 900 });
-        setTimeout(() => GalaxyGen.paint(c, GalaxyGen.make(N, rng), N), 450);
-      }, 1400);
-    }
+    real.then(({ N, next }) => {
+      const tiles = Array.from({ length: 8 }, () => {
+        const c = document.createElement("canvas");
+        GalaxyGen.paint(c, next(), N);
+        prev.appendChild(c);
+        return c;
+      });
+      if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        let i = 0;
+        setInterval(() => {
+          const c = tiles[i++ % tiles.length];
+          c.animate([{ opacity: 1 }, { opacity: 0.1 }, { opacity: 1 }], { duration: 900 });
+          setTimeout(() => GalaxyGen.paint(c, next(), N), 450);
+        }, 1400);
+      }
+    });
   }
 
   // ---------- photo galleries (js/photos.js) ----------
