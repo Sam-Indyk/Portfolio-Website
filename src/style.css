@@ -37,6 +37,34 @@ kbd { font: 10px var(--mono); border: 1px solid var(--hair); border-radius: 3px;
 .hint { opacity: 0.8; transition: opacity 0.8s; }
 .scrolled .hint { opacity: 0; }
 
+/* ---------- opening ---------- */
+#hero { position: fixed; z-index: 4; left: clamp(22px, 6vw, 96px); top: 24vh; max-width: 760px; }
+#hero h1 { font: 300 clamp(54px, 8.6vw, 128px)/0.95 var(--sans); letter-spacing: -0.035em; margin: 0; text-shadow: 0 2px 40px rgba(0,0,0,.5); }
+.hero-line { font: 400 12px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-2); margin: 26px 0 30px; }
+.hero-links { display: flex; flex-wrap: wrap; gap: 10px; }
+.hero-links a, .hero-links button { font: 400 14px var(--sans); color: var(--ink); text-decoration: none; padding: 9px 16px; border: 1px solid var(--hair);
+  background: rgba(6, 7, 9, 0.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); cursor: pointer; transition: border-color .2s, background .2s; }
+.hero-links a:hover, .hero-links button:hover { border-color: rgba(242,239,232,.45); background: rgba(242,239,232,.08); }
+#hero-down { display: inline-block; margin-top: 44px; color: var(--ink-3); text-decoration: none; }
+#hero-down:hover { color: var(--ink); }
+.in-hero .top .name, .in-hero .hint, .in-hero .bottom #zone { opacity: 0; }
+.top .name, .bottom #zone { transition: opacity .5s; }
+
+/* ---------- demo theatre ---------- */
+#theatre { position: fixed; inset: 0; z-index: 8; display: flex; flex-direction: column; background: #050608; opacity: 0; pointer-events: none; transition: opacity .35s; }
+#theatre.open { opacity: 1; pointer-events: auto; }
+.theatre-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px clamp(16px, 3vw, 28px); border-bottom: 1px solid var(--hair); }
+.theatre-bar > div { display: flex; gap: 22px; align-items: center; }
+#theatre-title { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#theatre-frame { flex: 1; width: 100%; border: 0; background: #050608; }
+
+/* panel extras */
+.p-points { margin: 4px 0 14px; padding-left: 18px; color: var(--ink-2); font-size: 14.5px; line-height: 1.55; }
+.p-points li { margin: 5px 0; }
+.p-points li::marker { color: var(--ink-3); }
+.p-frame-wrap { position: relative; }
+.p-expand { position: absolute; right: 8px; top: 30px; padding: 5px 9px; background: rgba(6,7,9,.7); border: 1px solid var(--hair); color: var(--ink); cursor: pointer; }
+
 /* ---------- always-on mini tags ---------- */
 #tags { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
 .mini { position: absolute; left: 0; top: 0; font-size: 9.5px; letter-spacing: 0.1em; color: rgba(242, 239, 232, 0.78);
@@ -126,6 +154,8 @@ body.hovering, body.hovering #gl { cursor: pointer; }
   .p-title { font-size: 32px; }
   #index-list li { grid-template-columns: 1fr; gap: 2px; }
   #index h2 { font-size: 44px; }
+  #hero { top: 15vh; right: 22px; }
+  .hero-links a, .hero-links button { padding: 8px 12px; font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
   #panel, #reticle, #index { transition: none; }

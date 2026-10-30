@@ -1,4 +1,4 @@
-﻿/*
+/*
  * galaxies.js: procedural galaxy images for the EigenGalaxy demo.
  *
  * Stand-in for Galaxy Zoo 2 cutouts: centred, grayscale, square images of

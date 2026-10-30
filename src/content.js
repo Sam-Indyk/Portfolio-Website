@@ -14,7 +14,7 @@ export const ITEMS = {
     title: "EigenGalactic",
     meta: "PCA · Galaxy Zoo 2",
     body: "100 eigengalaxies learned from 4,952 galaxies. Each galaxy is the mean plus a weighted sum of them.",
-    links: [["Source", "https://github.com/Sam-Indyk/EigenGalactic"], ["Full explorer", "/demos/eigengalaxy/"]],
+    links: [["Source", "https://github.com/Sam-Indyk/EigenGalactic"], ["Full explorer", "/demos/eigengalaxy/index.html"]],
   },
   telescope: {
     label: "Deblurring",
@@ -22,7 +22,7 @@ export const ITEMS = {
     meta: "Richardson–Lucy deconvolution",
     body: "Recovering blurred images: QR codes, pixel art and stacked telescope frames.",
     links: [["Source", "https://github.com/Sam-Indyk/EigenGalactic"]],
-    demo: "/demos/deblurring/",
+    demo: "/demos/deblurring/index.html",
   },
   capsule: {
     label: "Torchlight · 2026",
@@ -64,7 +64,7 @@ export const ITEMS = {
     meta: "Team Lead & Mechanical Lead · NABC 2027",
     body: "A 600 mm slurry micro-TBM for the Not-a-Boring Competition, modelled in CadQuery. This is the model.",
     links: [["Source", "https://github.com/Sam-Indyk/uatxcavators-tbm"], ["Control station", "https://github.com/Sam-Indyk/UatxcavatorsGUI"]],
-    demo: "/demos/tbm-viewer/",
+    demo: "/demos/tbm-viewer/index.html",
   },
   polytopia: {
     label: "Polytopia-Zero",

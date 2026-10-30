@@ -3,7 +3,7 @@
 // small tunnel deeper down, and the Polytopia-Zero fossil in the rock face. Units are metres.
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { fossilMaps } from "../textures.js";
+import { fossilMaps, glowMap } from "../textures.js";
 import { pbrRepeat } from "../pbr.js";
 import { CUT_Z, SLAB_W } from "./surface.js";
 
@@ -148,7 +148,7 @@ export async function buildUnderground({ renderer, isMobile, base = "/" }) {
   road.position.set(tx, TUNNEL.y - 1.32, tz - 0.675);
   road.receiveShadow = true;
   group.add(road);
-  const strip = new THREE.Mesh(new THREE.BoxGeometry(L, 0.05, 0.08), new THREE.MeshStandardMaterial({ color: 0xfff1dd, emissive: 0xffd8a8, emissiveIntensity: 3 }));
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(L, 0.05, 0.08), new THREE.MeshStandardMaterial({ color: 0xfff1dd, emissive: 0xffd8a8, emissiveIntensity: 1.4 }));
   strip.position.set(tx, TUNNEL.y + 1.32, tz - 1.25);
   group.add(strip);
 
@@ -181,11 +181,22 @@ export async function buildUnderground({ renderer, isMobile, base = "/" }) {
     if (!focusCab || Math.abs(x) < Math.abs(focusCab.position.x)) focusCab = cab;
   }
   pickables.push({ id: "tunnel", object: tube, tagAnchor: focusCab, focus: { pos: new THREE.Vector3(focusCab.position.x + 1.5, TUNNEL.y + 0.2, tz + 5), target: focusCab.position.clone() } });
-  for (let x = TUNNEL.x0 + 6; x < TUNNEL.x1; x += 12) {
-    const l = new THREE.PointLight(0xffd2a0, 14, 10, 2);
-    l.position.set(x, TUNNEL.y + 0.8, tz - 0.5);
+  // Two wide lights for the whole tunnel (every extra light costs every pixel on screen).
+  for (const x of [TUNNEL.x0 + L * 0.27, TUNNEL.x0 + L * 0.73]) {
+    const l = new THREE.PointLight(0xffd2a0, 22, 24, 1.6);
+    l.position.set(x, TUNNEL.y + 0.9, tz + 0.6);
     group.add(l);
   }
+  // Pools of light: additive decals on the rock face stand in for lamps (no per-pixel lighting cost).
+  const poolTex = glowMap("rgba(255,178,90,1)");
+  const pool = (x, y, w, h, o) => {
+    const d = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: poolTex, color: 0xffb25a, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    d.position.set(x, y, CUT_Z + 0.04);
+    group.add(d);
+    return d;
+  };
+  // Light spilling out of the open tunnel onto the rock just above and below it.
+  for (let x = TUNNEL.x0 + 3; x < TUNNEL.x1; x += 7) { pool(x, TUNNEL.y + 2.6, 9, 3.4, 0.16); pool(x, TUNNEL.y - 2.5, 9, 3.0, 0.12); }
 
   // ---------- the DN600 boring its own tunnel deeper down ----------
   const BL = BORE.x1 - BORE.x0, bz = CUT_Z + BORE.r + 0.06;
@@ -213,19 +224,19 @@ export async function buildUnderground({ renderer, isMobile, base = "/" }) {
   const work = new THREE.SpotLight(0xffb25a, 70, 14, 0.5, 0.7, 1.6);
   work.position.set(BORE.x1 - 2.5, BORE.y + 3.2, CUT_Z + 4.5);
   work.target = tbm;
-  work.castShadow = !isMobile;
-  const fill = new THREE.PointLight(0xffc488, 4, 6, 2);
-  fill.position.set(BORE.x1 + 0.8, BORE.y + 0.5, CUT_Z + 2.2);
-  group.add(work, fill);
+  group.add(work);
   // Caged work lamps along the deep level, each throwing a pool of sodium light on the rock.
   const lampMat = new THREE.MeshStandardMaterial({ color: 0x332211, emissive: 0xffb25a, emissiveIntensity: 4 });
-  for (const x of [-14, -3, 6]) {
+  const cage = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.7, roughness: 0.5 });
+  for (const x of [-15, -3, 5]) {
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), lampMat);
     bulb.position.set(x, BORE.y + 1.6, CUT_Z + 0.25);
-    const l = new THREE.PointLight(0xffb25a, 7, 9, 2);
-    l.position.copy(bulb.position).add(new THREE.Vector3(0, 0, 0.3));
-    group.add(bulb, l);
+    const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.25), cage);
+    bracket.position.set(x, BORE.y + 1.68, CUT_Z + 0.13);
+    group.add(bulb, bracket);
+    pool(x, BORE.y + 1.0, 5.5, 4.6, 0.34);
   }
+  pool(BORE.x1 - 1.5, BORE.y + 0.3, 7, 4, 0.2);
   pickables.push({ id: "dn600", object: tbm, focus: { pos: new THREE.Vector3(BORE.x1 + 0.8, BORE.y + 0.4, CUT_Z + 4.2), target: tbm.position.clone() } });
 
   // ---------- Polytopia-Zero fossil in the rock face ----------
@@ -247,9 +258,9 @@ export async function buildUnderground({ renderer, isMobile, base = "/" }) {
   slab.scale.setScalar(1.2);
   slab.position.copy(FOSSIL);
   slab.castShadow = slab.receiveShadow = true;
-  const slabLight = new THREE.SpotLight(0xffdcae, 40, 8, 0.5, 0.75, 1.8);
-  slabLight.position.set(FOSSIL.x + 1.5, FOSSIL.y + 2.4, CUT_Z + 3);
-  slabLight.target = slab;
+  // One soft light raking across the carving so its grooves read.
+  const slabLight = new THREE.PointLight(0xffdcae, 9, 7, 1.8);
+  slabLight.position.set(FOSSIL.x + 1.6, FOSSIL.y + 1.8, CUT_Z + 1.6);
   group.add(slab, slabLight);
   pickables.push({ id: "polytopia", object: slab, focus: { pos: new THREE.Vector3(FOSSIL.x + 0.4, FOSSIL.y, CUT_Z + 3.6), target: FOSSIL.clone() } });
 

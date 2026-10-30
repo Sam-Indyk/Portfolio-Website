@@ -7,7 +7,6 @@ import { solarCells, foilMaps } from "../textures.js";
 // Its limb sits a little under the floating objects, filling the lower third of the opening frame.
 // Far enough back that even its nearest point is behind the sky panorama (z = -720).
 export const EARTH = { r: 2100, center: new THREE.Vector3(0, 241 - 2100, -3000) };
-const DEEP = 1.87;            // galaxies/stars sit DEEP× further than they used to, scaled to match
 export const SUN_SPACE = new THREE.Vector3(-0.45, 0.55, 0.7).normalize();
 export const SPACE_Y = 530;   // middle of the floating objects
 
@@ -33,7 +32,7 @@ const vert = /* glsl */ `
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 const earthFrag = /* glsl */ `
-  uniform sampler2D dayMap, nightMap, specMap, cloudMap; uniform vec3 sunDir; uniform float shift, fade;
+  uniform sampler2D dayMap, specMap, cloudMap; uniform vec3 sunDir; uniform float shift, fade;
   varying vec2 vUv; varying vec3 vN; varying vec3 vW;
   void main() {
     if (fade <= 0.001) discard;
@@ -45,8 +44,6 @@ const earthFrag = /* glsl */ `
     // Deepen oceans toward the rich blue of NASA imagery.
     day = mix(day, day * vec3(0.55, 0.78, 1.25), ocean * 0.6);
     vec3 col = day * (0.04 + 1.35 * max(ndl, 0.0)) * (1.0 - 0.4 * shadow);
-    vec3 night = pow(texture2D(nightMap, vUv).rgb, vec3(1.8)) * vec3(1.5, 1.1, 0.7);
-    col += night * (1.0 - smoothstep(-0.2, 0.05, ndl));
     vec3 h = normalize(sunDir + v);
     col += vec3(1.0, 0.95, 0.85) * pow(max(dot(n, h), 0.0), 120.0) * ocean * 1.1 * step(0.0, ndl);
     float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
@@ -93,7 +90,7 @@ const galaxyFrag = /* glsl */ `
   uniform sampler2D atlas; uniform float fade; varying vec2 vUv; varying float vB;
   void main() { gl_FragColor = vec4(texture2D(atlas, vUv).rgb * vB * fade, 1.0); }`;
 
-export function buildSpace({ textures, galaxyMeta, isMobile }) {
+export function buildSpace({ textures, galaxyMeta, isMobile, portrait = false }) {
   const group = new THREE.Group();
   const pickables = [];
   const res = isMobile ? "2k" : "4k";
@@ -104,7 +101,7 @@ export function buildSpace({ textures, galaxyMeta, isMobile }) {
   const seg = isMobile ? 128 : 256;
   const earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH.r, seg, seg / 2), new THREE.ShaderMaterial({
     vertexShader: vert, fragmentShader: earthFrag, transparent: true,
-    uniforms: { ...shared, dayMap: { value: textures[`day-${res}`] }, nightMap: { value: textures[`night-${res}`] }, specMap: { value: textures["specular-2k"] }, cloudMap: { value: textures[`clouds-${res}`] } },
+    uniforms: { ...shared, dayMap: { value: textures[`day-${res}`] }, specMap: { value: textures["specular-2k"] }, cloudMap: { value: textures[`clouds-${res}`] } },
   }));
   const clouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH.r * 1.003, seg, seg / 2), new THREE.ShaderMaterial({
     vertexShader: vert, fragmentShader: cloudFrag, transparent: true, depthWrite: false, uniforms: { ...shared, cloudMap: { value: textures[`clouds-${res}`] } },
@@ -147,11 +144,21 @@ export function buildSpace({ textures, galaxyMeta, isMobile }) {
   const centers = new Float32Array(G * 3), sizes = new Float32Array(G), cells = new Float32Array(G * 2), bright = new Float32Array(G);
   let seed = 42;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const gz = -4200;
+  // Scattered across the whole sky among the stars: mostly small and faint, a few nearby and large.
+  // Stratified (jittered grid) so they never clump.
+  const gz = -4200, gCols = 20, gRows = Math.ceil(G / gCols);
+  const order = Array.from({ length: G }, (_, i) => i).sort(() => rnd() - 0.5);
+  let tagGalaxy = null;
   for (let i = 0; i < G; i++) {
-    const c = new THREE.Vector3((rnd() - 0.5) * 2100 * DEEP, SPACE_Y + (110 + rnd() * 1300) * DEEP, gz - rnd() * 300);
+    const cell = order[i], cx = cell % gCols, cy = Math.floor(cell / gCols);
+    const c = new THREE.Vector3(
+      (-0.5 + (cx + 0.15 + rnd() * 0.7) / gCols) * 5600,
+      -260 + ((cy + 0.15 + rnd() * 0.7) / gRows) * 2700,
+      gz - rnd() * 400);
     centers.set([c.x, c.y, c.z], i * 3);
-    sizes[i] = (34 + Math.pow(rnd(), 2) * 80) * DEEP;
+    const big = rnd() < 0.08;
+    sizes[i] = big ? 95 + rnd() * 70 : 26 + Math.pow(rnd(), 1.6) * 46;
+    if (big && (!tagGalaxy || Math.abs(c.x) + Math.abs(c.y - 1150) < Math.abs(tagGalaxy.c.x) + Math.abs(tagGalaxy.c.y - 1150))) tagGalaxy = { c, s: sizes[i] };
     cells.set([i % galaxyMeta.grid, Math.floor(i / galaxyMeta.grid)], i * 2);
     bright[i] = 0.9 + rnd() * 0.45;
     pickables.push({ id: "galaxy", galaxy: i, sphere: new THREE.Sphere(c, sizes[i] * 0.42), label: "Galaxy · decompose" });
@@ -191,10 +198,14 @@ export function buildSpace({ textures, galaxyMeta, isMobile }) {
   const bus = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.8, 2.6), new THREE.MeshStandardMaterial({ map: gold, normalMap: goldN, metalness: 1, roughness: 0.32 }));
   bus.position.y = -1.4;
   iscr.add(panels, spine, ribs, bus);
-  iscr.position.set(-34, SPACE_Y + 6, -14);
+  // The ISCR array is the centrepiece; the telescope and capsule sit at the edges (stacked on phones).
+  const L = portrait
+    ? { iscr: [0, 2, -10], tele: [-13, 38, -6], drag: [12, -30, 0] }
+    : { iscr: [0, 4, -14], tele: [-47, 13, -10], drag: [47, -9, -2] };
+  iscr.position.set(L.iscr[0], SPACE_Y + L.iscr[1], L.iscr[2]);
   iscr.rotation.set(1.05, 0.32, -0.08);   // tilted to face the sun and the viewer
   group.add(iscr);
-  pickables.push({ id: "iscr", object: iscr, focus: { pos: new THREE.Vector3(-22, SPACE_Y + 8, 30), target: iscr.position.clone() } });
+  pickables.push({ id: "iscr", object: iscr, focus: { pos: iscr.position.clone().add(new THREE.Vector3(10, 6, 44)), target: iscr.position.clone() } });
 
   // ---------- space telescope ----------
   const tele = new THREE.Group();
@@ -216,10 +227,10 @@ export function buildSpace({ textures, galaxyMeta, isMobile }) {
     tele.add(wing, arm);
   }
   tele.add(tube, aft, inner, door);
-  tele.position.set(36, SPACE_Y + 10, -6);
+  tele.position.set(L.tele[0], SPACE_Y + L.tele[1], L.tele[2]);
   tele.rotation.set(0.25, 0.5, -1.0);
   group.add(tele);
-  pickables.push({ id: "telescope", object: tele, focus: { pos: new THREE.Vector3(26, SPACE_Y + 10, 26), target: tele.position.clone() } });
+  pickables.push({ id: "telescope", object: tele, focus: { pos: tele.position.clone().add(new THREE.Vector3(6, 0, 30)), target: tele.position.clone() } });
 
   // ---------- Crew Dragon ----------
   const dragon = new THREE.Group();
@@ -241,10 +252,10 @@ export function buildSpace({ textures, galaxyMeta, isMobile }) {
     dragon.add(w);
   }
   dragon.add(capsule, shield, trunk, nose);
-  dragon.position.set(6, SPACE_Y - 16, 4);
+  dragon.position.set(L.drag[0], SPACE_Y + L.drag[1], L.drag[2]);
   dragon.rotation.set(-0.3, 0.4, -0.6);
   group.add(dragon);
-  pickables.push({ id: "capsule", object: dragon, focus: { pos: new THREE.Vector3(3, SPACE_Y - 14, 24), target: dragon.position.clone() } });
+  pickables.push({ id: "capsule", object: dragon, focus: { pos: dragon.position.clone().add(new THREE.Vector3(-3, 2, 22)), target: dragon.position.clone() } });
 
   // Key light for the space objects (faded out lower down by main.js).
   const sun = new THREE.DirectionalLight(0xfff4e6, 3.4);
@@ -265,6 +276,7 @@ export function buildSpace({ textures, galaxyMeta, isMobile }) {
 
   return {
     group, pickables, envScene, sun,
+    galaxyTagAnchor: tagGalaxy ? tagGalaxy.c.clone().add(new THREE.Vector3(-tagGalaxy.s * 0.5, tagGalaxy.s * 0.75, 0)) : new THREE.Vector3(0, 1300, gz),
     // Earth dissolves into the sky as the camera descends, and is hidden in the closing overview;
     // stars and galaxies fade out below the upper atmosphere.
     setFade(earth, sky) { earthFade.value = earth; skyFade.value = sky; },
