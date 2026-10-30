@@ -28,14 +28,18 @@ function ledPanel() {
 
 async function loadDN600(base) {
   const [meta, buf] = await Promise.all([
-    fetch(`${base}assets/dn600.json`).then((r) => r.json()),
-    fetch(`${base}assets/dn600.bin`).then((r) => r.arrayBuffer()),
+    fetch(`${base}assets/dn600q.json`).then((r) => r.json()),
+    fetch(`${base}assets/dn600q.bin`).then((r) => r.arrayBuffer()),
   ]);
   const root = new THREE.Group(), cutter = new THREE.Group();
   for (const mm of meta.meshes) {
+    // Positions are uint16 within each mesh's bounding box (see tools/optimize_assets.py).
+    const q = new Uint16Array(buf, mm.v[0], mm.v[1] * 3), pos = new Float32Array(q.length);
+    const lo = mm.lo, span = [0, 1, 2].map((k) => (mm.hi[k] - mm.lo[k]) / 65535);
+    for (let i = 0; i < q.length; i++) pos[i] = lo[i % 3] + q[i] * span[i % 3];
     const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(buf, mm.v[0], mm.v[1] * 3), 3));
-    g.setIndex(new THREE.BufferAttribute(new Uint32Array(buf, mm.i[0], mm.i[1]), 1));
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setIndex(new THREE.BufferAttribute(mm.i32 ? new Uint32Array(buf, mm.i[0], mm.i[1]) : new Uint16Array(buf, mm.i[0], mm.i[1]), 1));
     g.computeVertexNormals();
     // CAD colours identify parts, not finishes: shell painted, cutterhead/bearings machined steel.
     const rubber = new THREE.Color(mm.color).getHSL({}).l < 0.22;

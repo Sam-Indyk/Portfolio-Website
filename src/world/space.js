@@ -187,6 +187,9 @@ export function buildSpace({ textures, galaxyMeta, isMobile, portrait = false })
   let k = 0;
   for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
     m.makeTranslation((x - cols / 2 + 0.5) * (pw + gap), 0, (y - rows / 2 + 0.5) * (pw + gap));
+    // Each panel slightly different (cell batches and angle), so the array reads as many panels.
+    const s = 0.78 + Math.random() * 0.3;
+    panels.setColorAt(k, new THREE.Color(s, s * (0.97 + Math.random() * 0.05), Math.min(1, s * 1.06)));
     panels.setMatrixAt(k++, m);
   }
   const span = cols * (pw + gap);

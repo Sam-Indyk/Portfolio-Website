@@ -134,8 +134,8 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.06;
   const hemi = new THREE.HemisphereLight(0xb6c4e0, 0x3a3222, 0.9);
   // Soft front fill (the bright western sky behind the viewer): shapes facades the sun can't reach.
-  const fill = new THREE.DirectionalLight(0xc8d4ee, 0.9);
-  fill.position.set(-60, 50, 160); fill.target.position.set(0, 8, -40);
+  const fill = new THREE.DirectionalLight(0xffd9b0, 0.9);
+  fill.position.set(-90, 40, 140); fill.target.position.set(0, 8, -40);
   group.add(sun, sun.target, hemi, fill, fill.target);
 
   // ---------- ground ----------
@@ -157,13 +157,15 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   const grass = new THREE.Mesh(new THREE.PlaneGeometry(SLAB_W, LAWN_D), grassMat);
   grass.rotation.x = -Math.PI / 2; grass.position.set(0, 0, CUT_Z - LAWN_D / 2); grass.receiveShadow = true;
   const paveMaps = pbr("precast_stone_paving", 1, base);
-  const pavement = triplanar(new THREE.MeshStandardMaterial({ map: paveMaps.map, roughnessMap: paveMaps.roughnessMap, color: 0xe2dbd0, roughness: 1 }), 0.22);
+  // Diffuse like the lawn: at this grazing angle toward the sun, PBR paving turns into glare.
+  const pavement = triplanar(new THREE.MeshLambertMaterial({ map: paveMaps.map, color: new THREE.Color(2.6, 2.45, 2.25) }), 0.12);
   const plaza = new THREE.Mesh(new THREE.PlaneGeometry(portrait ? 120 : 200, 60), pavement);
   plaza.rotation.x = -Math.PI / 2; plaza.position.set(0, 0.02, CUT_Z - 30.5); plaza.receiveShadow = true;
   group.add(grass, plaza);
 
   const plaster = pbr("painted_plaster_wall", 1, base);
-  const stone = triplanar(new THREE.MeshStandardMaterial({ map: plaster.map, roughnessMap: plaster.roughnessMap, color: 0xfffaf0, roughness: 1, envMapIntensity: 0.8 }), 0.3);
+  // Warm limestone (white paint reads as flat grey-blue at dusk).
+  const stone = triplanar(new THREE.MeshStandardMaterial({ map: plaster.map, roughnessMap: plaster.roughnessMap, color: 0xfff3e0, roughness: 1, envMapIntensity: 0.65 }), 0.3);
   const stoneDark = triplanar(new THREE.MeshStandardMaterial({ map: plaster.map, roughnessMap: plaster.roughnessMap, color: 0xd9d2c4, roughness: 1, envMapIntensity: 0.7 }), 0.3);
   const woodMaps = pbr("wood_floor", 1, base);
   const woodFloor = triplanar(new THREE.MeshStandardMaterial({ map: woodMaps.map, roughnessMap: woodMaps.roughnessMap, color: 0x8a5a3c, roughness: 0.9 }), 0.45);
@@ -188,8 +190,9 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
     box(W + 0.8, 0.7, DH + 0.8, 0, 14.6),                     // architrave
     box(W + 1.6, 0.55, DH + 1.6, 0, 15.6),                    // cornice
     box(W + 0.4, 1.3, DH + 0.4, 0, 16.5),                     // balustrade base / attic
-    // Pilasters between window bays.
-    ...[-24.6, -20.2, -15.7, -11.2, 11.2, 15.7, 20.2, 24.6].map((x) => box(0.7, 13.2, 0.35, x, 7.9, FZ + 0.17)),
+    // Pilasters between window bays, and rusticated quoins at the corners.
+    ...[-20.2, -15.7, 15.7, 20.2].map((x) => box(0.8, 13.2, 0.5, x, 7.9, FZ + 0.25)),
+    ...[-1, 1].flatMap((sx) => Array.from({ length: 9 }, (_, i) => box(1.3 - (i % 2) * 0.4, 1.35, 0.45, sx * (W / 2 - 0.6 + (i % 2) * 0.2), 1.6 + i * 1.5, FZ + 0.2))),
   ]), stone));
   // Dentils under the cornice.
   const dent = new THREE.InstancedMesh(new THREE.BoxGeometry(0.22, 0.28, 0.28), stoneDark, 160);
@@ -221,7 +224,9 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
       const win = new THREE.Mesh(new THREE.PlaneGeometry(1.8, hh), on ? winLit : winDark);
       win.position.set(x, y, FZ + 0.02);
       wh.add(win);
-      trim.push(box(2.3, 0.18, 0.3, x, y - hh / 2 - 0.12, FZ + 0.12), box(0.18, hh, 0.22, x - 1.0, y, FZ + 0.1), box(0.18, hh, 0.22, x + 1.0, y, FZ + 0.1));
+      // Sash on the wall face inside a projecting architrave frame.
+      win.position.z = FZ + 0.03;
+      trim.push(box(2.5, 0.25, 0.5, x, y - hh / 2 - 0.16, FZ + 0.15), box(0.3, hh + 0.3, 0.4, x - 1.05, y, FZ + 0.12), box(0.3, hh + 0.3, 0.4, x + 1.05, y, FZ + 0.12));
       if (row === 0) {
         // Alternating triangular and segmental pediments, as on the real facade.
         caps.push(lit % 2
@@ -248,10 +253,13 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   wh.add(new THREE.Mesh(box(2.4, 4.6, 0.1, 0, 3.4, FZ + 0.06), warmLit));
   const fan = new THREE.Mesh(new THREE.CircleGeometry(1.2, 24, 0, Math.PI), warmLit);
   fan.position.set(0, 5.7, FZ + 0.07);
-  const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.45, 16, 12), new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xffc070, emissiveIntensity: 3 }));
-  lantern.position.set(0, 10.2, PZ);
-  wh.add(fan, lantern);
-  glow(wh, 0, 10.2, PZ + 0.5, 3.2);
+  // Lantern hanging from the portico ceiling on a chain.
+  const lantern = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.22, 0.9, 8), new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xffc070, emissiveIntensity: 2.2 }));
+  lantern.position.set(0, 10.6, PZ);
+  const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.6), roofMat);
+  chain.position.set(0, 12.4, PZ);
+  wh.add(fan, lantern, chain);
+  glow(wh, 0, 10.6, PZ + 0.4, 1.6);
   // Flag on the roof.
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 9, 8), new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.8, roughness: 0.3 }));
   pole.position.set(0, 24.6, 0);

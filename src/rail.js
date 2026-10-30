@@ -21,23 +21,33 @@ const KEYS = [
   { t: 0.89, pos: V(12.3, -27.35, -8.6) },
   { t: 1.0, pos: V(0, 150, 1150) },
 ];
-// Phones: the bands are laid out narrower and taller (see space.js / surface.js), so the camera
-// stays close enough for detail; the underground stops pan to each object in turn.
-const PORTRAIT = {
-  0.0: V(0, 600, 120), 0.09: V(0, 532, 120), 0.17: V(0, 470, 125), 0.27: V(0, 300, 130), 0.36: V(0, 140, 132),
-  0.45: V(0, 22, 128), 0.52: V(0, 19, 128), 0.6: V(-12, -8, 60), 0.68: V(-6, -17, 26),
-  0.76: V(-6.6, -27.2, 9.5), 1.0: V(0, 150, 1700),
-};
+// Phones: the orbit band is laid out taller (see space.js); on the surface the camera pans along
+// the row, one building at a time, so nothing is shrunk to fit a narrow screen.
+const PORTRAIT_KEYS = [
+  { t: 0.0, pos: V(0, 600, 120) },
+  { t: 0.09, pos: V(0, 532, 120), at: ["iscr", "telescope", "capsule", "galaxy"] },
+  { t: 0.17, pos: V(0, 470, 125) },
+  { t: 0.27, pos: V(-20, 300, 130) },
+  { t: 0.36, pos: V(-50, 120, 110) },
+  { t: 0.41, pos: V(-62, 15, 72), at: ["whitehouse"] },
+  { t: 0.47, pos: V(0, 17, 118), at: ["union"] },
+  { t: 0.53, pos: V(60, 14, 78), at: ["rotunda"] },
+  { t: 0.6, pos: V(20, -8, 60) },
+  { t: 0.68, pos: V(-6, -17, 26), at: ["tunnel"] },
+  { t: 0.76, pos: V(-6.6, -27.2, 9.5), at: ["polytopia"] },
+  { t: 0.84, pos: V(12.3, -27.35, -8.6), at: ["dn600"] },
+  { t: 0.89, pos: V(12.3, -27.35, -8.6) },
+  { t: 1.0, pos: V(0, 150, 1350) },
+];
 export const OUTRO_FROM = 0.92;
 
 export class Rail {
   constructor({ portrait = false, aspect = 1.6 } = {}) {
     // Narrow landscape windows back the camera off so each band still fits across.
     const zScale = portrait ? 1 : Math.min(1.5, Math.max(1, 1.5 / aspect));
-    this.keys = KEYS.map((k) => {
-      const p = portrait && PORTRAIT[k.t] ? PORTRAIT[k.t] : k.pos;
-      return { ...k, pos: k.t < 1 ? V(p.x, p.y, p.z * (k.pos.z > 10 ? zScale : 1)) : p.clone() };
-    });
+    this.keys = (portrait ? PORTRAIT_KEYS : KEYS).map((k) => ({
+      ...k, pos: k.t < 1 ? V(k.pos.x, k.pos.y, k.pos.z * (k.pos.z > 10 ? zScale : 1)) : k.pos.clone(),
+    }));
     this.curve = new THREE.CatmullRomCurve3(this.keys.map((k) => k.pos), false, "centripetal");
   }
 

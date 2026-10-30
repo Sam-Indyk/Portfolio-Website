@@ -6,19 +6,24 @@ const cache = new Map();
 
 export function setLoadingManager(manager) { loader.manager = manager; }
 
-// {map, normalMap, roughnessMap} for public/assets/tex/<id>/, tiled `repeat` times.
+// {map, normalMap, roughnessMap} for public/assets/tex/<id>/, tiled `repeat` times. Each map is
+// only downloaded when something actually reads it.
 export function pbr(id, repeat = 1, base = "/") {
   const key = `${id}@${repeat}`;
   if (cache.has(key)) return cache.get(key);
   const load = (name, srgb) => {
-    const t = loader.load(`${base}assets/tex/${id}/${name}.jpg`);
+    const t = loader.load(`${base}assets/tex/${id}/${name}.webp`);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(repeat, repeat);
     t.anisotropy = 8;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
     return t;
   };
-  const maps = { map: load("diff", true), normalMap: load("nor", false), roughnessMap: load("rough", false) };
+  const got = {};
+  const maps = {};
+  for (const [prop, file, srgb] of [["map", "diff", true], ["normalMap", "nor", false], ["roughnessMap", "rough", false]]) {
+    Object.defineProperty(maps, prop, { enumerable: true, get: () => (got[prop] ||= load(file, srgb)) });
+  }
   cache.set(key, maps);
   return maps;
 }

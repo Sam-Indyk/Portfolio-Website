@@ -46,10 +46,10 @@ const loadTex = (key, url, srgb = true) => new Promise((done) => loader.load(url
 }));
 
 await Promise.all([
-  loadTex(`day-${res}`, `${BASE}assets/earth/day-${res}.jpg`),
-  loadTex(`clouds-${res}`, `${BASE}assets/earth/clouds-${res}.jpg`),
-  loadTex("specular-2k", `${BASE}assets/earth/specular-2k.jpg`, false),
-  loadTex("galaxies", `${BASE}assets/galaxies.jpg`),
+  loadTex(`day-${res}`, `${BASE}assets/earth/day-${res}.webp`),
+  loadTex(`clouds-${res}`, `${BASE}assets/earth/clouds-${res}.webp`),
+  loadTex("specular-2k", `${BASE}assets/earth/specular-2k.webp`, false),
+  loadTex("galaxies", `${BASE}assets/galaxies.webp`),
 ]);
 const galaxyMeta = await fetch(`${BASE}assets/galaxies.json`).then((r) => r.json());
 const space = buildSpace({ textures, galaxyMeta, isMobile, portrait });
@@ -75,13 +75,13 @@ const rail = new Rail({ portrait, aspect: innerWidth / innerHeight });
 async function loadRest() {
   manager.onProgress = () => {};
   await Promise.all([
-    loadTex("seal", `${BASE}assets/au-seal.png`),
-    loadTex("backdrop", `${BASE}assets/sky-backdrop.jpg`),
+    loadTex("seal", `${BASE}assets/au-seal.webp`),
+    loadTex("backdrop", `${BASE}assets/sky-backdrop.webp`),
     new RGBELoader().loadAsync(`${BASE}assets/sky-1k.hdr`).then((t) => { textures.sky = t; }),
     fetch(`${BASE}assets/sky-backdrop.json`).then((r) => r.json()).then((j) => { textures.backdropMeta = j; }),
   ]);
   const [{ buildSurface }, { buildUnderground }] = await Promise.all([import("./world/surface.js"), import("./world/underground.js")]);
-  surface = buildSurface({ textures, renderer, isMobile, portrait, base: BASE });
+  surface = buildSurface({ textures, renderer, isMobile, base: BASE });   // phones pan along the full row
   applyEnv(surface.group, surface.envMap, 1);
   under = await buildUnderground({ renderer, isMobile, base: BASE });
   applyEnv(under.group, under.envMap, 0.15);   // underground, image light is only a faint fill for metal
@@ -316,7 +316,7 @@ async function fillPanel(p) {
   const item = ITEMS[p.id];
   panel.classList.toggle("wide", p.id === "polytopia" || p.id === "galaxy" || p.id === "tunnel");
   let html = "";
-  if (item.seal) html += `<img class="p-seal" src="${BASE}assets/au-seal.png" alt="Austin Union Society seal">`;
+  if (item.seal) html += `<img class="p-seal" src="${BASE}assets/au-seal.webp" alt="Austin Union Society seal">`;
   html += `<p class="p-meta mono">${item.meta}</p><h2 class="p-title">${item.title}</h2><p class="p-body">${item.body}</p>`;
   if (item.guests) html += `<p class="p-body">${item.guests}</p>`;
   if (item.points) html += `<ul class="p-points">${item.points.map((s) => `<li>${s}</li>`).join("")}</ul>`;
