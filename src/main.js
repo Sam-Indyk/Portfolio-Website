@@ -322,8 +322,9 @@ async function fillPanel(p) {
   if (item.points) html += `<ul class="p-points">${item.points.map((s) => `<li>${s}</li>`).join("")}</ul>`;
   if (item.figures) html += `<div class="p-figs">${item.figures.map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join("")}</div>`;
   if (p.id === "galaxy") html += `<div class="eg" id="eg"></div>`;
-  if (item.replay) html += `<div class="p-frame-wrap"><iframe class="p-frame" src="${item.replay}" title="Polytopia-Zero replay" loading="lazy"></iframe><button class="p-expand mono" data-demo="${item.replay}" data-title="Polytopia-Zero · trained agent (blue) vs. lookahead bot">Full screen</button></div>`;
+  if (item.replay) html += `<iframe class="p-frame" src="${item.replay}" title="Polytopia-Zero replay" loading="lazy"></iframe>`;
   html += linksHTML(item);
+  if (item.replay) html = html.replace('<div class="p-links">', `<div class="p-links"><button class="btn solid" data-demo="${item.replay}" data-title="Polytopia-Zero · trained agent (blue) vs. lookahead bot">Watch full screen</button>`);
   body.innerHTML = html;
   if (p.id === "galaxy") {
     eigenMod = eigenMod || (await import("./eigen.js"));

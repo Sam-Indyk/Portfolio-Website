@@ -56,7 +56,14 @@ export const ITEMS = {
     label: "The Boring Company",
     title: "The Boring Company",
     meta: "Software Engineering Intern · 2026–",
-    body: "Built automated network testing for TBM cameras and switches, and tools for the factory's displays. Supported tunnel operations.",
+    body: "Software for the machines and the people who run them.",
+    points: [
+      "Network integration testing for TBM cameras and switches, then continuous health monitoring (MQTT → InfluxDB → Grafana).",
+      "A factory-wide display system: a map of every TV, one-click configuration, and a kiosk agent that survives reboots and updates.",
+      "Rebuilt the internal sign-in service on Django and Postgres, with role- and training-based access.",
+      "Gap sensing: a replay test harness, an auto-cleaning algorithm for the depth cameras, and the electrical box it runs in.",
+      "A browser viewer of each machine's full CAD, with every sensor and IO block labelled and kept in sync with the PDM.",
+    ],
   },
   dn600: {
     label: "UATXcavators",
