@@ -2,6 +2,24 @@
 
 Agreed with Sam on 2026-10-29. This replaces the v1 prototype ("stacked slides").
 
+## v3 changes (agreed 2026-11-01, branch `v3`)
+
+- **Descent:** the camera tips ~25° down and dives at Austin on the globe (North America facing, Texas
+  map blended in), re-entry haze covers a cut to the local sky, a sunset cloud sea, then a drop
+  through the clouds over real Austin terrain (USGS 3DEP + NAIP, `tools/austin_terrain.py`), levelling
+  out at eye height in front of the Union. Ground runs to the horizon; no floating slab.
+- **Surface:** Union close and dominant; White House and rotunda well back to either side; banner in
+  deep maroon. Plaza site: the upland west of MoPac, east of the Mount Bonnell bluff, facing the sunset.
+- **Union click (to build):** lecterns lit gold (Aye) and deep blue (No), the leading side glowing;
+  past Union motions rotate on the banner; visitors vote; tallies kept in Supabase.
+- **Polytopia (to build):** a floating island of tiles above the cloud sea playing a real agent game
+  from the replay data. The fossil goes.
+- **Underground (to build):** a long, deep descent through strata like v1; the TBC tunnel finished with
+  Teslas driving through; the DN600 creeps across the screen with scroll and ends centred for the
+  closing zoom, with the outro over it.
+- **ISCR (to build):** bigger and further forward; turns toward the cursor; data pulses across the
+  panels, laser links to Earth, lit compute underneath.
+
 ## Concept
 
 One continuous 3D scene. Scrolling moves a camera on a fixed cinematic rail

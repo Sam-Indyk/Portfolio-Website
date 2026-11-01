@@ -9,6 +9,9 @@ import { solarCells, foilMaps } from "../textures.js";
 export const EARTH = { r: 2100, center: new THREE.Vector3(0, 241 - 2100, -3000) };
 export const SUN_SPACE = new THREE.Vector3(-0.45, 0.55, 0.7).normalize();
 export const SPACE_Y = 530;   // middle of the floating objects
+// Where Austin faces on the globe: low on its visible face, so the dive tips the camera ~25° down.
+export const AUSTIN_DIR = new THREE.Vector3(0, 0.8, 0.6).normalize();
+const AUSTIN_LL = [30.317, -97.758];
 
 // Rotate the globe so a chosen lat/lon faces `dir`, north up.
 function orient(mesh, lat, lon, dir) {
@@ -17,7 +20,7 @@ function orient(mesh, lat, lon, dir) {
   const east = new THREE.Vector3(Math.sin(phi), 0, Math.cos(phi)).normalize();
   const north = new THREE.Vector3().crossVectors(p, east);
   const d = dir.clone().normalize();
-  const dEast = new THREE.Vector3(0, 1, 0).cross(d).normalize().negate();
+  const dEast = new THREE.Vector3(0, 1, 0).cross(d).normalize();
   const dNorth = new THREE.Vector3().crossVectors(d, dEast);
   const src = new THREE.Matrix4().makeBasis(east, north, p);
   const dst = new THREE.Matrix4().makeBasis(dEast, dNorth, d);
@@ -32,22 +35,30 @@ const vert = /* glsl */ `
     gl_Position = projectionMatrix * viewMatrix * w;
   }`;
 const earthFrag = /* glsl */ `
-  uniform sampler2D dayMap, specMap, cloudMap; uniform vec3 sunDir; uniform float shift, fade;
+  uniform sampler2D dayMap, specMap, cloudMap, texasMap; uniform vec3 sunDir; uniform float shift, fade, haze, texasOn;
+  uniform vec4 texasBox;   // lon0, lon1, lat0, lat1
   varying vec2 vUv; varying vec3 vN; varying vec3 vW;
   void main() {
     if (fade <= 0.001) discard;
     vec3 n = normalize(vN), v = normalize(cameraPosition - vW);
     float ndl = dot(n, sunDir);
     vec3 day = texture2D(dayMap, vUv).rgb;
+    // Sharper regional map of Texas for the dive (same Blue Marble source), feathered at its edges.
+    vec2 ll = vec2(vUv.x * 360.0 - 180.0, vUv.y * 180.0 - 90.0);
+    vec2 tu = (ll - texasBox.xz) / (texasBox.yw - texasBox.xz);
+    float inTx = texasOn * smoothstep(0.0, 0.12, min(min(tu.x, 1.0 - tu.x), min(tu.y, 1.0 - tu.y)));
+    if (inTx > 0.0) day = mix(day, texture2D(texasMap, tu).rgb, inTx);
     float ocean = texture2D(specMap, vUv).r;
     float shadow = texture2D(cloudMap, vUv + vec2(shift - 0.0012, 0.0006)).r;
     // Deepen oceans toward the rich blue of NASA imagery.
     day = mix(day, day * vec3(0.55, 0.78, 1.25), ocean * 0.6);
     vec3 col = day * (0.04 + 1.35 * max(ndl, 0.0)) * (1.0 - 0.4 * shadow);
     vec3 h = normalize(sunDir + v);
-    col += vec3(1.0, 0.95, 0.85) * pow(max(dot(n, h), 0.0), 120.0) * ocean * 1.1 * step(0.0, ndl);
+    col += vec3(1.0, 0.95, 0.85) * pow(max(dot(n, h), 0.0), 260.0) * ocean * 0.45 * step(0.0, ndl);
     float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
     col = mix(col, vec3(0.35, 0.6, 1.0) * (0.25 + max(ndl, 0.0)), fres * 0.7);
+    // Re-entry: the air thickens into a bright blue haze as the camera dives.
+    col = mix(col, vec3(0.62, 0.76, 0.95), haze);
     gl_FragColor = vec4(col, fade);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
@@ -94,14 +105,15 @@ export function buildSpace({ textures, galaxyMeta, isMobile, portrait = false })
   const group = new THREE.Group();
   const pickables = [];
   const res = isMobile ? "2k" : "4k";
-  const earthFade = { value: 1 }, skyFade = { value: 1 };
+  const earthFade = { value: 1 }, skyFade = { value: 1 }, haze = { value: 0 }, texasOn = { value: 0 };
+  const texasMap = { value: null }, texasBox = { value: new THREE.Vector4(-180, -179, -90, -89) };
   const shared = { sunDir: { value: SUN_SPACE }, shift: { value: 0 }, fade: earthFade };
 
   // ---------- Earth ----------
   const seg = isMobile ? 128 : 256;
   const earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH.r, seg, seg / 2), new THREE.ShaderMaterial({
     vertexShader: vert, fragmentShader: earthFrag, transparent: true,
-    uniforms: { ...shared, dayMap: { value: textures[`day-${res}`] }, specMap: { value: textures["specular-2k"] }, cloudMap: { value: textures[`clouds-${res}`] } },
+    uniforms: { ...shared, haze, texasOn, texasMap, texasBox, dayMap: { value: textures[`day-${res}`] }, specMap: { value: textures["specular-2k"] }, cloudMap: { value: textures[`clouds-${res}`] } },
   }));
   const clouds = new THREE.Mesh(new THREE.SphereGeometry(EARTH.r * 1.003, seg, seg / 2), new THREE.ShaderMaterial({
     vertexShader: vert, fragmentShader: cloudFrag, transparent: true, depthWrite: false, uniforms: { ...shared, cloudMap: { value: textures[`clouds-${res}`] } },
@@ -109,8 +121,8 @@ export function buildSpace({ textures, galaxyMeta, isMobile, portrait = false })
   const atmo = new THREE.Mesh(new THREE.SphereGeometry(EARTH.r * 1.012, seg, seg / 2), new THREE.ShaderMaterial({
     vertexShader: vert, fragmentShader: atmoFrag, side: THREE.BackSide, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, uniforms: shared,
   }));
-  // North America and the Atlantic face the viewer.
-  orient(earth, 34, -76, new THREE.Vector3(0, 0.42, 1));
+  // Austin sits where the dive aims (see rail.js), North America spread around it.
+  orient(earth, ...AUSTIN_LL, AUSTIN_DIR);
   clouds.quaternion.copy(earth.quaternion);
   for (const m of [earth, clouds, atmo]) m.position.copy(EARTH.center);
   // Everything far behind draws before the sky panorama, so the panorama covers it lower down.
@@ -283,6 +295,9 @@ export function buildSpace({ textures, galaxyMeta, isMobile, portrait = false })
     // Earth dissolves into the sky as the camera descends, and is hidden in the closing overview;
     // stars and galaxies fade out below the upper atmosphere.
     setFade(earth, sky) { earthFade.value = earth; skyFade.value = sky; },
+    setHaze(v) { haze.value = v; },
+    // The regional Texas map arrives with the rest of the scene, after the opening frame.
+    setTexas(tex, box) { texasMap.value = tex; texasBox.value.set(box.lon[0], box.lon[1], box.lat[0], box.lat[1]); texasOn.value = 1; },
     update(t) {
       shared.shift.value = t * 0.0000018;
       iscr.position.y = SPACE_Y + 6 + Math.sin(t * 0.0004) * 0.4;

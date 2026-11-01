@@ -19,6 +19,12 @@ a { color: inherit; }
 
 #gl { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: pan-y; }
 #scroll-space { height: 1000vh; }
+/* Re-entry haze that covers the jump from the globe to the sky over Austin. */
+#veil { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse 120% 90% at 50% 60%, #dfe9f6 0%, #b9cde6 55%, #9db6d6 100%); }
+/* Inside the cloud deck: sunlit at the top of the screen, greyer below. */
+#mist { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
+  background: linear-gradient(180deg, #f6ece2 0%, #e4dcd6 55%, #c9c6cb 100%); }
 
 /* ---------- chrome ---------- */
 .chrome { position: fixed; left: 0; right: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; padding: 22px clamp(18px, 3vw, 36px); pointer-events: none; }

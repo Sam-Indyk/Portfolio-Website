@@ -1,14 +1,14 @@
-// Surface band of the cross-section, at golden hour: the Austin Union chamber front and centre on the
-// plaza, the White House set back to one side and a classical rotunda (8VC) to the other.
-// Units are metres; the ground is y = 0.
+// The plaza at golden hour, on real ground in Austin (terrain.js): the Austin Union chamber front and
+// centre and close, the White House and a classical rotunda (8VC) set well back to either side.
+// Units are metres; the plaza is at y = 0 and the camera faces west (-z), into the sunset.
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { flagMap, windowMap, leafClusterMap, glowMap } from "../textures.js";
 import { pbr, triplanar } from "../pbr.js";
+import { LAWN } from "./terrain.js";
 
-export const CUT_Z = -12;        // the cross-section cut: lawn behind it, strata wall below it
-const BACKDROP_Z = -720;         // sky panorama
-export const SLAB_W = 440;       // width of the lawn and the strata face
+export const CUT_Z = -12;        // the cross-section cut: the strata face below the plaza's front edge
+export const SLAB_W = 440;       // width of the strata face
 
 // Find the sun in an equirectangular HDR (its brightest region) as a direction.
 function hdrSun(tex) {
@@ -106,10 +106,10 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   const time = { value: 0 };
   const m = new THREE.Matrix4();
 
-  // Layout: the Union front and centre at the plaza's edge; the others set back to the sides.
+  // Layout: the Union close, front and centre; the others well back, one to either side of it.
   const LAY = portrait
-    ? { au: [0, -29, 1.35], wh: [-31, -86, 0.8], ro: [31, -74, 0.9] }
-    : { au: [0, -29, 1.45], wh: [-70, -62, 0.9], ro: [66, -55, 1.0] };
+    ? { au: [0, -30, 1.45], wh: [-62, -190, 0.9], ro: [58, -160, 1.0] }
+    : { au: [0, -30, 1.45], wh: [-96, -240, 0.9], ro: [90, -200, 1.0] };
 
   // ---------- sun: matches the backdrop panorama (low, behind the row, a little left) ----------
   const bm = textures.backdropMeta;
@@ -126,42 +126,31 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   const envMap = new THREE.PMREMGenerator(renderer).fromScene(envScene, 0, 0.1, 100).texture;
 
   const sun = new THREE.DirectionalLight(0xffb070, 5.5);
-  sun.target.position.set(0, -12, -40);
-  sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 400);
+  sun.target.position.set(0, 0, -110);
+  sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, 700);
   sun.castShadow = !isMobile;
   sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -110, right: 110, top: 70, bottom: -70, near: 10, far: 900 });
-  sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.06;
+  Object.assign(sun.shadow.camera, { left: -170, right: 170, top: 60, bottom: -60, near: 10, far: 1500 });
+  // The sun is 8° up: ground faces it almost edge-on, so shadows need a generous normal offset.
+  sun.shadow.bias = -0.001; sun.shadow.normalBias = 0.4;
   const hemi = new THREE.HemisphereLight(0xb6c4e0, 0x3a3222, 0.9);
   // Soft front fill (the bright western sky behind the viewer): shapes facades the sun can't reach.
   const fill = new THREE.DirectionalLight(0xffd9b0, 0.9);
   fill.position.set(-90, 40, 140); fill.target.position.set(0, 8, -40);
   group.add(sun, sun.target, hemi, fill, fill.target);
 
-  // ---------- ground ----------
-  const grassMaps = pbr("sparse_grass", 6000, base);
-  // Purely diffuse: the camera looks across the lawn toward the low sun, and PBR's grazing-angle
-  // Fresnel turns it into tan glare. Real grass barely does that.
-  const grassMat = new THREE.MeshLambertMaterial({ map: grassMaps.map, color: new THREE.Color(1.9, 1.9, 1.9) });
-  // The source texture is dry and brownish: keep its detail but recolour it as a watered lawn, with
-  // large-scale variation so it doesn't tile visibly.
-  grassMat.onBeforeCompile = (sh) => {
-    sh.fragmentShader = sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
-      float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(lum) * vec3(0.42, 0.78, 0.24) * 1.9, 0.75);
-      float big = texture2D(map, vMapUv * 0.013).g * 2.4 + texture2D(map, vMapUv * 0.0031 + 0.3).g * 1.6;
-      diffuseColor.rgb *= mix(0.72, 1.12, clamp(big - 0.2, 0.0, 1.0));`);
-  };
-  // The lawn ends at the cut, is as wide as the strata face, and runs back to the sky panorama.
-  const LAWN_D = -BACKDROP_Z + CUT_Z - 4;
-  const grass = new THREE.Mesh(new THREE.PlaneGeometry(SLAB_W, LAWN_D), grassMat);
-  grass.rotation.x = -Math.PI / 2; grass.position.set(0, 0, CUT_Z - LAWN_D / 2); grass.receiveShadow = true;
+  // ---------- plaza (the lawn around it is part of the terrain) ----------
   const paveMaps = pbr("precast_stone_paving", 1, base);
-  // Diffuse like the lawn: at this grazing angle toward the sun, PBR paving turns into glare.
-  const pavement = triplanar(new THREE.MeshLambertMaterial({ map: paveMaps.map, color: new THREE.Color(2.6, 2.45, 2.25) }), 0.12);
-  const plaza = new THREE.Mesh(new THREE.PlaneGeometry(portrait ? 120 : 200, 60), pavement);
-  plaza.rotation.x = -Math.PI / 2; plaza.position.set(0, 0.02, CUT_Z - 30.5); plaza.receiveShadow = true;
-  group.add(grass, plaza);
+  // Purely diffuse: the camera looks across the paving toward the low sun, and PBR's grazing-angle
+  // Fresnel turns it into tan glare.
+  const pavement = triplanar(new THREE.MeshLambertMaterial({ map: paveMaps.map, color: new THREE.Color(2.6, 2.45, 2.25), polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), 0.12);
+  // A walkway from where the viewer lands up to a wider apron at the Union's steps; lawn either side.
+  const plaza = new THREE.Mesh(mergeGeometries([
+    new THREE.PlaneGeometry(14, 56).translate(0, -26, 0),
+    new THREE.PlaneGeometry(44, 14).translate(0, 6, 0),
+  ]), pavement);
+  plaza.rotation.x = -Math.PI / 2; plaza.position.set(0, 0.02, 0); plaza.receiveShadow = true;
+  group.add(plaza);
 
   const plaster = pbr("painted_plaster_wall", 1, base);
   // Warm limestone (white paint reads as flat grey-blue at dusk).
@@ -310,7 +299,8 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   for (let i = 0; i < 6; i++) cols.push([-AW / 2 + 1 + i * ((AW - 2) / 5), 1, AD / 2 - 0.6]);
   for (const x of [-AW / 2 + 1, AW / 2 - 1]) for (let i = 1; i < 4; i++) cols.push([x, 1, AD / 2 - 0.6 - i * ((AD - 2) / 3)]);
   au.add(columns(cols, AH, 0.5, stone));
-  const back = new THREE.Mesh(new THREE.BoxGeometry(AW - 1, AH, 0.6), new THREE.MeshStandardMaterial({ color: 0x5a1a1f, roughness: 0.75 }));
+  // Dark walnut panelling behind, so the maroon banner reads as its own colour.
+  const back = new THREE.Mesh(new THREE.BoxGeometry(AW - 1, AH, 0.6), new THREE.MeshStandardMaterial({ color: 0x3a2a22, roughness: 0.7 }));
   back.position.set(0, 1 + AH / 2, -AD / 2 + 0.6);
   au.add(back);
   au.add(new THREE.Mesh(mergeGeometries([box(AW + 1, 0.9, AD + 1, 0, 1 + AH + 0.45), box(AW + 1.6, 0.6, AD + 1.6, 0, 1 + AH + 1.2)]), stone));
@@ -324,8 +314,16 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   const pedSeal = new THREE.Mesh(new THREE.CircleGeometry(1.7, 64), sealMat);
   pedSeal.position.set(0, 1 + AH + 1.5 + 1.75, AD / 2 + 0.72);
   au.add(pedSeal);
-  const banner = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 6.2), new THREE.MeshStandardMaterial({ color: 0x7d1d27, roughness: 0.9 }));
+  // Deep Union maroon, hung on a gilt rod with a thin gold border.
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 6.2), new THREE.MeshStandardMaterial({ color: 0x4a0b16, roughness: 0.95 }));
   banner.position.set(0, 6.0, -AD / 2 + 0.95);
+  const gilt = new THREE.MeshStandardMaterial({ color: 0xc9a14a, metalness: 0.9, roughness: 0.35 });
+  const bannerTrim = new THREE.Mesh(mergeGeometries([
+    box(4.4, 0.08, 0.02, 0, 3.1, 0), box(4.4, 0.08, 0.02, 0, -3.1, 0), box(0.08, 6.2, 0.02, -2.16, 0, 0), box(0.08, 6.2, 0.02, 2.16, 0, 0),
+    new THREE.CylinderGeometry(0.06, 0.06, 4.9, 12).rotateZ(Math.PI / 2).translate(0, 3.25, 0.02),
+  ]), gilt);
+  bannerTrim.position.copy(banner.position).add(new THREE.Vector3(0, 0, 0.01));
+  au.add(bannerTrim);
   const bannerSeal = new THREE.Mesh(new THREE.CircleGeometry(1.6, 64), new THREE.MeshStandardMaterial({ map: textures.seal, transparent: true, roughness: 0.7, emissive: 0xffffff, emissiveMap: textures.seal, emissiveIntensity: 0.12 }));
   bannerSeal.position.set(0, 6.6, -AD / 2 + 0.97);
   au.add(banner, bannerSeal);
@@ -397,10 +395,22 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   const spots = [];
   let ts = 5;
   const rr = () => ((ts = (ts * 16807) % 2147483647) / 2147483647);
-  const clear = [[LAY.wh[0], LAY.wh[1], 34 * LAY.wh[2]], [LAY.ro[0], LAY.ro[1], 14], [0, LAY.au[1], 24]];
-  const free = (x, z) => clear.every(([cx, cz, r]) => Math.hypot(x - cx, z - cz) > r) && z < CUT_Z - 40;
-  for (let tries = 0; spots.length < (isMobile ? 110 : 200) && tries < 4000; tries++) {
-    const x = (rr() - 0.5) * (SLAB_W - 20), z = CUT_Z - 40 - Math.pow(rr(), 0.8) * 360;
+  // A park around the plaza: clear of the buildings, the forecourt, and the lines of sight from the
+  // landing spot to the White House and the rotunda.
+  const clear = [[LAY.wh[0], LAY.wh[1], 38 * LAY.wh[2]], [LAY.ro[0], LAY.ro[1], 18], [0, LAY.au[1], 28]];
+  const eye = new THREE.Vector2(0, 40);
+  const sight = (x, z, [bx, bz], r) => {
+    const a = new THREE.Vector2(bx, bz).sub(eye), p = new THREE.Vector2(x, z).sub(eye);
+    const k = THREE.MathUtils.clamp(p.dot(a) / a.lengthSq(), 0, 1);
+    return p.distanceTo(a.multiplyScalar(k)) > r;
+  };
+  const free = (x, z) => clear.every(([cx, cz, r]) => Math.hypot(x - cx, z - cz) > r)
+    && !(Math.abs(x) < 70 && z > -48)                           // open, sunlit lawn in front of the Union
+    && sight(x, z, LAY.wh, 34) && sight(x, z, LAY.ro, 24);
+  // At an 8° sun each tree throws a ~70 m shadow, so the park is planted sparsely.
+  for (let tries = 0; spots.length < (isMobile ? 100 : 170) && tries < 8000; tries++) {
+    const a = rr() * Math.PI * 2, d = Math.sqrt(rr()) * LAWN.r0;
+    const x = Math.cos(a) * d, z = LAWN.cz + Math.sin(a) * d;
     if (free(x, z)) spots.push([x, z, 0.9 + rr() * 0.8]);
   }
   const trunks = new THREE.InstancedMesh(trunkGeo, bark, spots.length);
@@ -417,48 +427,21 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   crowns.forEach((c) => { c.castShadow = c.receiveShadow = true; });
   group.add(trunks, ...crowns);
 
-  // Lamps along the front of the plaza.
+  // Lamps in pairs along the walkway.
   const lampMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.6, roughness: 0.4 });
   const globe = new THREE.MeshStandardMaterial({ color: 0xfff0d8, emissive: 0xffc77a, emissiveIntensity: 4 });
-  const lampX = portrait ? [-40, -26, 26, 40] : [-96, -40, -26, 26, 40, 96];
-  const posts = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.1, 4, 8), lampMat, lampX.length);
-  const globes = new THREE.InstancedMesh(new THREE.SphereGeometry(0.28, 12, 8), globe, lampX.length);
-  lampX.forEach((x, i) => {
-    posts.setMatrixAt(i, m.makeTranslation(x, 2, CUT_Z - 2));
-    globes.setMatrixAt(i, m.makeTranslation(x, 4.2, CUT_Z - 2));
-    glow(group, x, 4.2, CUT_Z - 1.8, 2.2);
+  const lamps = [-10, -10, 6, 6, 22, 22, 38, 38, 54, 54].map((z, i) => [(i % 2 ? 1 : -1) * 8.5, z]);
+  const posts = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.1, 4, 8), lampMat, lamps.length);
+  const globes = new THREE.InstancedMesh(new THREE.SphereGeometry(0.28, 12, 8), globe, lamps.length);
+  lamps.forEach(([x, z], i) => {
+    posts.setMatrixAt(i, m.makeTranslation(x, 2, z));
+    globes.setMatrixAt(i, m.makeTranslation(x, 4.2, z));
+    glow(group, x, 4.2, z + 0.2, 2.2);
   });
   group.add(posts, globes);
 
-  // ---------- sky: a panoramic backdrop cut from the 8K HDR, feathered at the top and sides so it
-  // dissolves into the atmosphere above and into darkness in the closing pull-back. ----------
-  const BW = 2600, BH = BW / (bm.width / bm.height);
-  const skyOpacity = { value: 1 }, skyBottom = { value: 0 };
-  const horizonY = 14;                                  // pitch 0 sits at the plaza's eye level
-  const backdrop = new THREE.Mesh(new THREE.PlaneGeometry(BW, BH), new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false, fog: false, toneMapped: false,
-    uniforms: { map: { value: textures.backdrop }, opacity: skyOpacity, bottomFeather: skyBottom, horizon: { value: -bm.pitch[0] / (bm.pitch[1] - bm.pitch[0]) } },
-    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-    fragmentShader: `uniform sampler2D map; uniform float opacity, bottomFeather, horizon; varying vec2 vUv; void main(){
-      vec4 c = texture2D(map, vUv);
-      float side = smoothstep(0.0, 0.14, vUv.x) * smoothstep(1.0, 0.86, vUv.x);
-      float top = smoothstep(1.0, 0.55, vUv.y);
-      // In the closing overview the sky softens into darkness below the horizon instead of a hard edge.
-      float bottom = mix(1.0, smoothstep(horizon - 0.02, horizon + 0.12, vUv.y), bottomFeather);
-      gl_FragColor = vec4(c.rgb, side * top * bottom * opacity);
-    }`,
-  }));
-  const horizonFrac = -bm.pitch[0] / (bm.pitch[1] - bm.pitch[0]);
-  backdrop.position.set(0, horizonY + BH / 2 - BH * horizonFrac, BACKDROP_Z);
-  backdrop.renderOrder = -2;
-  group.add(backdrop);
-
-  // Haze that matches the backdrop's horizon, so the lawn and trees recede into the panorama.
-  const fog = new THREE.Fog(0xd9cbbd, 160, 1100);
-
   return {
-    group, pickables, envMap, fog, skyRotation, sun, hemi, fill, sunDir: SUN_DIR,
-    setSkyOpacity(v, bottomFeather = 0) { skyOpacity.value = v; skyBottom.value = bottomFeather; },
+    group, pickables, envMap, skyRotation, sun, hemi, fill, sunDir: SUN_DIR,
     update(t) { time.value = t * 0.001; },
   };
 }

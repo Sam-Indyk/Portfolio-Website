@@ -1,0 +1,38 @@
+{
+ "plaza": [
+  30.3175,
+  -97.7605
+ ],
+ "metresPerDeg": [
+  110861.0,
+  96096.03
+ ],
+ "far": {
+  "x": [
+   -13000.0,
+   13000.0
+  ],
+  "z": [
+   -18000.0,
+   8000.0
+  ]
+ },
+ "near": 1600.0,
+ "dem": {
+  "size": 513,
+  "min": 123.23,
+  "scale": 0.1,
+  "plaza": 193.47
+ },
+ "texas": {
+  "lat": [
+   22.0,
+   38.5
+  ],
+  "lon": [
+   -106.5,
+   -89.0
+  ]
+ },
+ "credit": "Imagery: USDA NAIP / USGS. Elevation: USGS 3DEP. Texas: NASA Blue Marble."
+}

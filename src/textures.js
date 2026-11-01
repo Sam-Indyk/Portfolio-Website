@@ -224,3 +224,30 @@ export function glowMap(inner = "rgba(255,255,255,1)", outer = "rgba(255,255,255
   g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
   return tex(c);
 }
+
+// Tileable cloud noise for the cloud deck: R = large-scale fBm, G/B = its slope (x, y) for lighting
+// puffs from the low sun, A = a second, finer fBm. Linear data, not colour.
+export function cloudNoise(size = 256) {
+  const a = fbm(size, { octaves: 6, base: 4, seed: 17 }), b = fbm(size, { octaves: 5, base: 8, seed: 29 });
+  for (const f of [a, b]) {   // stretch to the full 0..1 range so thresholds in the shader mean something
+    let lo = Infinity, hi = -Infinity;
+    for (const v of f) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    for (let i = 0; i < f.length; i++) f[i] = (f[i] - lo) / (hi - lo);
+  }
+  const data = new Uint8Array(size * size * 4);
+  const at = (x, y) => a[((y + size) % size) * size + ((x + size) % size)];
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const i = (y * size + x) * 4;
+    data[i] = a[y * size + x] * 255;
+    data[i + 1] = Math.min(255, Math.max(0, ((at(x + 1, y) - at(x - 1, y)) * 12 + 0.5) * 255));
+    data[i + 2] = Math.min(255, Math.max(0, ((at(x, y + 1) - at(x, y - 1)) * 12 + 0.5) * 255));
+    data[i + 3] = b[y * size + x] * 255;
+  }
+  const t = new THREE.DataTexture(data, size, size);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.needsUpdate = true;
+  return t;
+}
