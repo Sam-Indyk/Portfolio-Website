@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EigenGalaxy Explorer</title>
+  <meta name="description" content="Principal component analysis on galaxy images, live in your browser. Rebuild galaxies from their top-k eigengalaxies.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07080d; --panel: #10131c; --line: rgba(255,255,255,.1); --line-2: rgba(255,255,255,.18);
+      --text: #eceef4; --muted: #a3a9bb; --dim: #737a90; --accent: #ffb547; --accent-2: #6ec8ff; --neutral: #5b6070;
+      --sans: "Space Grotesk", system-ui, sans-serif; --mono: "JetBrains Mono", ui-monospace, monospace;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: radial-gradient(ellipse at 70% -10%, #18203a, var(--bg) 60%) fixed; color: var(--text); font: 16px/1.55 var(--sans); }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 16px 64px; }
+    .mono { font-family: var(--mono); }
+    header h1 { font-size: clamp(28px, 4vw, 42px); margin: 0; letter-spacing: -.02em; }
+    header p { color: var(--muted); max-width: 72ch; margin: 10px 0 0; }
+    .eyebrow { color: var(--accent); font: 12px var(--mono); letter-spacing: .05em; margin: 0 0 8px; }
+    .status { display: flex; align-items: center; gap: 12px; margin: 22px 0; font: 13px var(--mono); color: var(--muted); }
+    .bar { flex: 0 0 220px; height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; }
+    .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent-2), var(--accent)); }
+    .grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 18px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; min-width: 0; }
+    .card h2 { font-size: 17px; margin: 0 0 4px; font-weight: 600; }
+    .card .sub { color: var(--dim); font-size: 13px; margin: 0 0 14px; }
+    canvas.px { image-rendering: pixelated; width: 100%; aspect-ratio: 1; border-radius: 8px; background: #000; display: block; }
+    .row4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .row4 figure, .basis figure { margin: 0; }
+    figcaption { font: 11px var(--mono); color: var(--muted); margin-top: 6px; text-align: center; }
+    .controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; margin: 16px 0 6px; }
+    .ctl { display: flex; align-items: center; gap: 10px; font: 13px var(--mono); color: var(--muted); }
+    .ctl b { color: var(--text); font-weight: 500; min-width: 3ch; display: inline-block; }
+    input[type=range] { accent-color: var(--accent); width: 190px; }
+    input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+    .btn { padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line-2); background: rgba(255,255,255,.04); color: var(--text); font: 500 14px var(--sans); cursor: pointer; }
+    .btn:hover { background: rgba(255,255,255,.1); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: #17110a; }
+    .readout { display: flex; gap: 22px; font: 12px var(--mono); color: var(--dim); margin-top: 10px; flex-wrap: wrap; }
+    .readout b { color: var(--text); font-weight: 500; }
+    .basis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+    .chart { position: relative; }
+    .chart canvas { width: 100%; height: 190px; display: block; }
+    .tip { position: absolute; pointer-events: none; background: #1a1e2a; border: 1px solid var(--line-2); border-radius: 8px; padding: 6px 9px; font: 12px var(--mono); color: var(--text); white-space: nowrap; transform: translate(-50%, -110%); opacity: 0; transition: opacity .12s; }
+    .legend { display: flex; gap: 16px; font: 11px var(--mono); color: var(--muted); margin-top: 8px; }
+    .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+    .math { color: var(--muted); font-size: 15px; }
+    .math code { font-family: var(--mono); color: var(--text); background: rgba(255,255,255,.06); padding: 1px 6px; border-radius: 5px; font-size: 13.5px; }
+    .note { font-size: 13px; color: var(--dim); border-left: 2px solid var(--accent); padding-left: 12px; margin-top: 14px; }
+    a { color: var(--accent-2); }
+    .full { grid-column: 1 / -1; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } .basis { grid-template-columns: repeat(4, 1fr); } }
+    @media (max-width: 480px) { .row4 { grid-template-columns: 1fr 1fr; } input[type=range] { width: 150px; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <p class="eyebrow">// eigengalactic · pca in the browser</p>
+      <h1>EigenGalaxy Explorer</h1>
+      <p>Every galaxy image below is a vector of a few thousand pixels. PCA finds the handful of directions, the
+        <em>eigengalaxies</em>, along which those vectors vary the most. Any galaxy can then be approximated as the
+        mean galaxy plus a weighted sum of the first <em>k</em> of them, and that holds even if you blur it first.</p>
+    </header>
+
+    <div class="status" id="status"><div class="bar"><i id="bar"></i></div><span id="status-text">Generating galaxies…</span></div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Reconstruct a galaxy</h2>
+        <p class="sub">Drag <em>k</em> to add eigengalaxies one at a time.</p>
+        <div class="row4">
+          <figure><canvas class="px" id="c-orig"></canvas><figcaption>original</figcaption></figure>
+          <figure><canvas class="px" id="c-input"></canvas><figcaption id="cap-input">input</figcaption></figure>
+          <figure><canvas class="px" id="c-recon"></canvas><figcaption id="cap-recon">reconstruction</figcaption></figure>
+          <figure><canvas class="px" id="c-resid"></canvas><figcaption>residual</figcaption></figure>
+        </div>
+        <div class="controls">
+          <label class="ctl">k <input type="range" id="k" min="0" max="64" value="12" disabled> <b id="k-val">12</b></label>
+          <label class="ctl"><input type="checkbox" id="blur-on"> blur first</label>
+          <label class="ctl">σ <input type="range" id="sigma" min="0.5" max="4" step="0.1" value="2.5"> <b id="sigma-val">2.5</b></label>
+        </div>
+        <div class="controls">
+          <button class="btn primary" id="next" disabled>New galaxy</button>
+          <label class="btn" for="upload">Upload your own image</label>
+          <input type="file" id="upload" accept="image/*" hidden>
+          <button class="btn" id="play" disabled>▶ Animate k</button>
+        </div>
+        <div class="readout">
+          <span>RMSE vs. original <b id="rmse">–</b></span>
+          <span>variance captured <b id="varcap">–</b></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Cumulative variance explained</h2>
+        <p class="sub">The share of the dataset's total pixel variance that the first <em>k</em> components capture.</p>
+        <div class="chart" id="var-chart"><canvas id="c-var"></canvas><div class="tip" id="var-tip"></div></div>
+        <h2 style="margin-top:18px">This galaxy's coordinates</h2>
+        <p class="sub">The coefficient <code class="mono" style="font-size:12px">cᵢ</code> on each eigengalaxy. Only the first <em>k</em> are used.</p>
+        <div class="chart" id="coef-chart"><canvas id="c-coef" style="height:130px"></canvas><div class="tip" id="coef-tip"></div></div>
+        <div class="legend"><span><i style="background:var(--accent)"></i>positive</span><span><i style="background:var(--accent-2)"></i>negative</span><span><i style="background:var(--neutral)"></i>unused (beyond k)</span></div>
+      </section>
+
+      <section class="card full">
+        <h2>The basis</h2>
+        <p class="sub">The mean galaxy, then the top eigengalaxies. Amber is positive and blue is negative; each one adds or removes light in that pattern.</p>
+        <div class="basis" id="basis"></div>
+      </section>
+
+      <section class="card full math">
+        <h2 style="color:var(--text)">How it works</h2>
+        <p>Stack <code>M</code> centred galaxy images as rows of <code>X</code> (M × pixels). The eigengalaxies are the top
+          eigenvectors of the covariance <code>XᵀX</code>. On thousands of images that matrix won't fit comfortably in memory
+          at once, which is why EigenGalactic uses <em>incremental</em> PCA: it updates the basis one batch of 100 galaxies at
+          a time.</p>
+        <p>Reconstruction is just projection: <code>cᵢ = uᵢ · (x − μ)</code> and <code>x̂ = μ + Σᵢ₌₁ᵏ cᵢ uᵢ</code>. A blurred
+          galaxy projects onto the same basis, and because the basis only contains galaxy-like structure, the projection pulls
+          the image back toward something galaxy-shaped.</p>
+        <p class="note" id="source-note">The real basis couldn't be loaded, so this page trained its own: 600 procedurally
+          generated galaxies (Sérsic ellipticals and log-spiral discs) at 48×48, eigen-decomposed through the Gram matrix
+          <code>XXᵀ</code> with subspace iteration in about a second. The full
+          <a href="https://github.com/Sam-Indyk/EigenGalactic" target="_blank" rel="noopener">EigenGalactic</a> pipeline fits
+          IncrementalPCA on Galaxy Zoo 2.</p>
+      </section>
+    </div>
+  </div>
+
+  <script src="galaxies.js"></script>
+  <script src="eigengalaxy.js"></script>
+</body>
+</html>

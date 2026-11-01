@@ -1,35 +1,44 @@
 # samuelindyk.com
 
-My portfolio site. Scrolling is a descent: it starts in orbit, falls through the atmosphere, lands on the White House lawn, then bores into the tunnels underneath while an altimeter tracks your height and depth.
+One continuous 3D scene. Scrolling descends from low Earth orbit, through the atmosphere, onto a plaza at dusk, and into the tunnels below. Work is shown as objects in the scene: hover for a label, click to fly in and open details. The design spec is in [docs/DESIGN.md](docs/DESIGN.md).
 
-Plain HTML, CSS, and JavaScript with no build step, hosted on GitHub Pages.
+Built with Vite, three.js, GSAP and Lenis.
+
+## Run
+
+```sh
+npm install
+npm run dev        # http://127.0.0.1:5173
+npm run build      # -> dist/
+```
+
+Debug hooks: `?t=0.5` jumps the scroll rail, and `?open=union` opens a panel (`?open=galaxy&g=3` opens galaxy #3).
 
 ## Layout
 
 | Path | What it is |
 |---|---|
-| `index.html` | The page. Content is split into four `.zone` wrappers (space, sky, surface, underground) |
-| `js/world.js` | The scroll-driven canvas background: galaxy, Earth, clouds, White House, strata, tunnels, TBM |
-| `js/main.js` | Reveal animations, the demo modal, galleries |
-| `js/galaxies.js` | Procedural galaxy generator (homepage preview + demo fallback) |
-| `js/photos.js` | Photo gallery lists; empty lists stay hidden |
-| `demos/eigengalaxy/` | EigenGalaxy Explorer. Loads `data/eigengalaxies.{json,bin}` exported by [EigenGalactic](https://github.com/Sam-Indyk/EigenGalactic)'s `export_web.py` |
-| `demos/deblurring/` | Richardson–Lucy deblurring app, from EigenGalactic |
-| `demos/tbm-viewer/` | UATXcavators DN600 spindle-mount viewer, from [uatxcavators-tbm](https://github.com/Sam-Indyk/uatxcavators-tbm) |
-| `assets/resume.html` | Source for `Samuel_Indyk_Resume.pdf` (print with Edge/Chrome → Save as PDF) |
+| `src/main.js` | Renderer, post-processing, stage switching, picking, reticle, panel, Index |
+| `src/rail.js` | Scroll progress → camera pose, veils between stages, zone label |
+| `src/world/space.js` | Earth shader, stars, real galaxies, ISCR array, telescope, Crew Dragon |
+| `src/world/surface.js` | HDR dusk sky, Austin Union chamber, White House, rotunda, trees |
+| `src/world/underground.js` | Loop-scale tunnel (TBC), reception shaft, DN600 from CadQuery, Polytopia fossil |
+| `src/eigen.js` | Eigen-decomposition panel for any sky galaxy |
+| `src/content.js` | All copy |
+| `public/demos/` | Deblurring app, DN600 assembly viewer, Polytopia-Zero replays, legacy EigenGalaxy explorer |
+| `tools/` | Asset builders (galaxy atlas, DN600 binary, Earth textures, Poly Haven fetch) |
 
-## Run locally
+## Regenerating assets
 
 ```sh
-python -m http.server 8000
-# open http://localhost:8000
+python tools/build_assets.py tbm public/demos/tbm-viewer/data/I.json
+python tools/build_assets.py galaxies ../EigenGalactic        # EigenGalactic venv
+python tools/earth_textures.py <folder of NASA / Solar System Scope maps>
+python tools/fetch_polyhaven.py
 ```
 
-A server is needed rather than `file://` because the demos `fetch` their data.
+Polytopia replays come from `polytopia-zero/scripts/record_replay.py --p0 net --net <best.pt> --p1 osla`.
 
-`?at=<section-id>` jumps straight to a section, e.g. `/?at=union`.
+## Credits
 
-## Updating the demos
-
-- **EigenGalaxy basis:** in EigenGalactic, run `python export_web.py`, then copy `web_export/eigengalaxies.json` and `.bin` into `demos/eigengalaxy/data/`.
-- **TBM viewer / deblurring:** copy the latest `viewer/` or `Deblurring.html` from their repos.
+Earth: NASA Blue Marble. Night lights, clouds, normal and specular maps: Solar System Scope (CC BY 4.0). Galaxies: Galaxy Zoo 2 / SDSS. Sky, ground, plaster, stone, concrete, asphalt, rock and wood: Poly Haven (CC0).

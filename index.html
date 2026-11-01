@@ -2,440 +2,103 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Samuel Indyk</title>
-  <meta name="description" content="Samuel Indyk: engineer at UATX and The Boring Company. From orbital compute to tunnel boring machines, with a stop at the White House and the Austin Union along the way.">
+  <meta name="description" content="Samuel Indyk. From orbit to underground.">
   <meta property="og:title" content="Samuel Indyk">
-  <meta property="og:description" content="From orbit to underground: orbital compute, debate, policy, and tunnel boring machines.">
+  <meta property="og:description" content="From orbit to underground.">
   <meta property="og:url" content="https://samuelindyk.com">
-  <meta name="theme-color" content="#05060b">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2305060b'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23ffb547' stroke-width='3'/%3E%3Cpath d='M16 7v18M7 16h18' stroke='%23ffb547' stroke-width='2'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#030406">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23030406'/%3E%3Ccircle cx='16' cy='16' r='8' fill='none' stroke='%23f2efe8' stroke-width='2'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
-  <canvas id="world" aria-hidden="true"></canvas>
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <div id="tags" aria-hidden="true"></div>
 
-  <!-- Altimeter HUD -->
-  <aside class="hud mono" aria-hidden="true">
-    <div class="hud-zone" id="hud-zone">LOW EARTH ORBIT</div>
-    <div class="hud-track"><div class="hud-fill" id="hud-fill"></div><div class="hud-ground"></div></div>
-    <div class="hud-read"><span id="hud-label">ALT</span> <span id="hud-value">408 km</span></div>
-  </aside>
+  <!-- opening: name and quick links, fades on the first scroll -->
+  <section id="hero">
+    <h1>Samuel Indyk</h1>
+    <p class="hero-line">University of Austin · The Boring Company · Austin Union</p>
+    <nav class="hero-links">
+      <a href="mailto:samuel.m.indyk@gmail.com">Email</a>
+      <a href="https://www.linkedin.com/in/samuel-indyk-b790b1272/" target="_blank" rel="noopener">LinkedIn</a>
+      <a href="https://github.com/Sam-Indyk" target="_blank" rel="noopener">GitHub</a>
+      <a href="/assets/Samuel_Indyk_Resume.pdf" target="_blank" rel="noopener">Résumé</a>
+      <button id="hero-index">Index</button>
+    </nav>
+    <a href="#" id="hero-down" class="mono">Scroll to descend ↓</a>
+  </section>
 
-  <header class="nav">
-    <a class="nav-mark" href="#top" aria-label="Back to orbit"><span class="mark-ring"></span>SI</a>
+  <!-- demo theatre -->
+  <section id="theatre" aria-hidden="true">
+    <div class="theatre-bar">
+      <span class="mono" id="theatre-title"></span>
+      <div>
+        <a class="link" id="theatre-newtab" target="_blank" rel="noopener">Open in new tab ↗</a>
+        <button class="link" id="theatre-close">Close <kbd>Esc</kbd></button>
+      </div>
+    </div>
+    <iframe id="theatre-frame" title="Demo" allow="fullscreen"></iframe>
+  </section>
+
+  <!-- closing frame, over the pulled-back view of the whole column -->
+  <section id="outro">
+    <h2 class="serif">From orbit to underground,<br><em>and everything in between.</em></h2>
+    <div class="outro-links">
+      <a href="mailto:samuel.m.indyk@gmail.com">samuel.m.indyk@gmail.com</a>
+      <a href="https://www.linkedin.com/in/samuel-indyk-b790b1272/" target="_blank" rel="noopener">LinkedIn</a>
+      <a href="https://github.com/Sam-Indyk" target="_blank" rel="noopener">GitHub</a>
+      <a href="/assets/Samuel_Indyk_Resume.pdf" target="_blank" rel="noopener">Résumé</a>
+    </div>
+    <a href="#" id="outro-top" class="mono">↑ Back to orbit</a>
+  </section>
+
+  <header class="chrome top">
+    <a class="name" href="#" id="home">Samuel Indyk</a>
     <nav>
-      <a href="#orbit">Orbit</a>
-      <a href="#union">Union</a>
-      <a href="#surface">Surface</a>
-      <a href="#underground">Underground</a>
-      <a href="#contact">Contact</a>
+      <button id="open-index" class="link">Index</button>
+      <a class="link" href="/assets/Samuel_Indyk_Resume.pdf" target="_blank" rel="noopener">Résumé</a>
     </nav>
   </header>
 
-  <main id="top">
-
-    <!-- ===================== ZONE 1: SPACE ===================== -->
-    <div class="zone" id="zone-space" data-zone="space">
-
-      <section class="hero">
-        <p class="eyebrow mono">// 408 km above you</p>
-        <h1>Samuel<br>Indyk</h1>
-        <p class="lede">
-          I build things from orbit to underground: <span class="hl">orbital compute</span>,
-          <span class="hl">tunnel boring machines</span>, and the software that runs them.
-          Scroll to descend.
-        </p>
-        <div class="hero-cta">
-          <a class="btn primary" href="#orbit">Begin descent ↓</a>
-          <a class="btn" href="https://github.com/Sam-Indyk" target="_blank" rel="noopener">GitHub ↗</a>
-          <a class="btn" href="https://www.linkedin.com/in/samuel-indyk-b790b1272/" target="_blank" rel="noopener">LinkedIn ↗</a>
-          <a class="btn ghost" href="assets/Samuel_Indyk_Resume.pdf" target="_blank" rel="noopener">Résumé (PDF)</a>
-        </div>
-        <dl class="hero-stats mono">
-          <div><dt>Studying</dt><dd>University of Austin · B.S. '28</dd></div>
-          <div><dt>Building</dt><dd>Software @ The Boring Company</dd></div>
-          <div><dt>Leading</dt><dd>President, Austin Union Society</dd></div>
-        </dl>
-      </section>
-
-      <section id="orbit" class="section">
-        <div class="section-head">
-          <p class="eyebrow mono">01 / orbit · publication</p>
-          <h2>Putting AI inference in orbit</h2>
-        </div>
-
-        <article class="panel paper reveal">
-          <div class="paper-text">
-            <p class="kicker mono">arXiv:2604.07760 [cs.DC] · Apr 2026</p>
-            <h3>Reduced-Mass Orbital AI Inference via Integrated Solar, Compute, and Radiator Panels</h3>
-            <p class="authors">S. Gaalema, <strong>S. Indyk</strong>, C. Staley</p>
-            <p>We proposed the <strong>Integrated Solar Compute Radiator (ISCR)</strong>: a single panel that fuses solar cells,
-              a vapor-chamber radiator, and compute ICs. The radiator doubles as the structure holding up the solar cells,
-              so mass drops sharply. I co-developed the architecture and modeled the orbital thermal balance, power budget,
-              and LLM inference throughput.</p>
-            <div class="figures mono">
-              <div><b>~500</b><span>W/kg specific power, ~5× conventional designs</span></div>
-              <div><b>16 MW</b><span>satellite from 16,000 panels</span></div>
-              <div><b>1</b><span>Starship payload to launch it</span></div>
-            </div>
-            <div class="card-actions">
-              <a class="btn primary" href="https://arxiv.org/abs/2604.07760" target="_blank" rel="noopener">Read the paper ↗</a>
-            </div>
-          </div>
-          <div class="paper-art" aria-hidden="true">
-            <svg viewBox="0 0 260 220" class="iscr">
-              <defs>
-                <linearGradient id="sun" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#ffd27a"/><stop offset="1" stop-color="#ffb547" stop-opacity="0"/></linearGradient>
-              </defs>
-              <g class="rays"><path d="M40 0 L70 60 M100 0 L120 60 M160 0 L170 60 M220 0 L220 60" stroke="url(#sun)" stroke-width="3"/></g>
-              <g class="layer l1"><path d="M30 70 L230 70 L250 90 L50 90 Z" fill="#1b3a6b" stroke="#6ec8ff"/><path d="M80 70 L100 90 M130 70 L150 90 M180 70 L200 90" stroke="#6ec8ff" stroke-opacity=".5"/></g>
-              <g class="layer l2"><path d="M30 104 L230 104 L250 124 L50 124 Z" fill="#2a2416" stroke="#ffb547"/><rect x="95" y="108" width="22" height="10" fill="#ffb547" opacity=".8"/><rect x="140" y="108" width="22" height="10" fill="#ffb547" opacity=".8"/></g>
-              <g class="layer l3"><path d="M30 138 L230 138 L250 158 L50 158 Z" fill="#20222b" stroke="#c9ced9"/><path d="M60 148 h170" stroke="#c9ced9" stroke-dasharray="3 5"/></g>
-              <g class="heat"><path d="M70 170 q6 12 0 24 M130 170 q6 12 0 24 M190 170 q6 12 0 24" stroke="#ff7a59" stroke-width="2" fill="none"/></g>
-              <text x="2" y="84" class="lbl">solar</text>
-              <text x="2" y="118" class="lbl">compute</text>
-              <text x="2" y="152" class="lbl">radiator</text>
-            </svg>
-          </div>
-        </article>
-      </section>
-
-      <section id="lab" class="section">
-        <div class="section-head">
-          <p class="eyebrow mono">02 / orbit · lab</p>
-          <h2>Linear algebra you can play with</h2>
-          <p class="section-sub">These run entirely in your browser, with no servers and nothing to install.</p>
-        </div>
-
-        <div class="lab-grid">
-          <article class="lab-card feature reveal" data-demo="demos/eigengalaxy/" data-title="EigenGalaxy Explorer">
-            <div class="lab-preview" id="eg-preview" aria-hidden="true"></div>
-            <div class="lab-text">
-              <p class="kicker mono">PCA · eigen-decomposition</p>
-              <h3>EigenGalaxy Explorer</h3>
-              <p>PCA on ~5,000 real Galaxy Zoo 2 galaxies. Rebuild any galaxy, even a blurred one, from its top
-                <em>k</em> eigengalaxies, and drag the slider to watch the structure come back.</p>
-              <div class="card-actions">
-                <button class="btn primary launch">Launch demo</button>
-                <a class="btn ghost" href="https://github.com/Sam-Indyk/EigenGalactic" target="_blank" rel="noopener">Source ↗</a>
-              </div>
-            </div>
-          </article>
-
-          <article class="lab-card reveal" data-demo="demos/deblurring/" data-title="Interactive Image Deblurring">
-            <div class="lab-preview art-deblur" aria-hidden="true"><span></span></div>
-            <div class="lab-text">
-              <p class="kicker mono">Richardson–Lucy deconvolution</p>
-              <h3>Image Deblurring</h3>
-              <p>Blur a QR code until it's unreadable, then deconvolve it back. Also includes pixel-art restoration and
-                astronomy-style shift-and-stack.</p>
-              <div class="card-actions">
-                <button class="btn primary launch">Launch demo</button>
-                <a class="btn ghost" href="https://github.com/Sam-Indyk/EigenGalactic" target="_blank" rel="noopener">Source ↗</a>
-              </div>
-            </div>
-          </article>
-
-          <a class="lab-card reveal linkcard" href="https://torchlightsameitan-d6ydnn3ximwbpt6yiko3gp.streamlit.app/" target="_blank" rel="noopener">
-            <div class="lab-preview art-torch" aria-hidden="true">
-              <svg viewBox="0 0 200 110"><g fill="none" stroke-width="2">
-                <path d="M10 80 C40 78 50 30 70 32 S100 90 120 60 S160 20 190 26" stroke="#6ec8ff"/>
-                <path d="M10 90 C40 86 60 60 80 66 S120 96 140 80 S170 60 190 64" stroke="#ffb547" stroke-dasharray="4 4"/>
-                <circle cx="70" cy="32" r="3" fill="#6ec8ff"/><circle cx="120" cy="60" r="3" fill="#6ec8ff"/></g></svg>
-            </div>
-            <div class="lab-text">
-              <p class="kicker mono">Hackathon · May 2026</p>
-              <h3>Torchlight: Astronaut Risk Profiles</h3>
-              <p>Individualized risk profiles for the Inspiration4 crew, built from nine NASA OSDR multi-omics datasets, with
-                bootstrap CIs and a Claude Q&amp;A grounded in the data.</p>
-              <div class="card-actions"><span class="btn primary">Live dashboard ↗</span></div>
-            </div>
-          </a>
-        </div>
-      </section>
-    </div>
-
-    <!-- ===================== ZONE 2: ATMOSPHERE ===================== -->
-    <div class="zone" id="zone-sky" data-zone="sky">
-      <div class="reentry mono" aria-hidden="true">— entering atmosphere —</div>
-
-      <section id="about" class="section">
-        <div class="section-head">
-          <p class="eyebrow mono">03 / descent · education</p>
-          <h2>Founding class, University of Austin</h2>
-        </div>
-        <div class="panel edu reveal">
-          <div>
-            <p class="kicker mono">Sep 2024 – Jun 2028 (expected)</p>
-            <h3>B.S. Liberal Studies, Concentration in STEM</h3>
-            <p>One of UATX's founding class. I take circuits and differential equations alongside
-              <em>The Rise and Fall of Ancient Rome</em>, and I think the combination is the point.</p>
-            <ul class="tags"><li>Analysis of Circuits</li><li>Differential Equations</li><li>Software Engineering</li><li>Ancient Rome</li></ul>
-          </div>
-          <div class="awards">
-            <div class="award"><span class="mono">award</span><b>Founders Scholarship</b></div>
-            <div class="award"><span class="mono">award</span><b>Lonsdale-Magaro Scholarship</b></div>
-            <div class="award"><span class="mono">lead</span><b>Software &amp; Mechanical Lead, UATXcavators</b></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Austin Union: the centerpiece -->
-      <section id="union" class="section union">
-        <div class="union-chamber reveal">
-          <div class="union-head">
-            <p class="union-eyebrow mono">04 / the austin union society</p>
-            <h2 class="union-title">Truth through debate.</h2>
-            <p class="union-role">Samuel Indyk · <em>President</em></p>
-          </div>
-
-          <div class="union-body">
-            <div class="union-lead">
-              <p>The Austin Union is UATX's student-run society for <strong>long-form, adversarial debate</strong>, built
-                in the tradition of the Oxford Union. The idea is simple: you find out what's true by putting it in a
-                room with someone who thinks it's wrong. That's a lot harder to do in a podcast clip or a comment section.</p>
-              <p>It's one of the things I'm proudest of. Beyond leading it, I've helped design the format that makes it
-                work week to week:</p>
-            </div>
-
-            <ol class="docket">
-              <li><span class="mono">I.</span><div><b>The weekly sitting.</b> The gavel opens the meeting, then a short challenge debate, a skills workshop, and a team debate on a motion posted a week in advance.</div></li>
-              <li><span class="mono">II.</span><div><b>Crash courses.</b> Day-long intensives with UATX faculty on rhetoric and style, building substantive arguments, and rebuttal and cross-examination.</div></li>
-              <li><span class="mono">III.</span><div><b>Open forums &amp; guest debates.</b> Public nights on hard questions, plus headline speakers from outside the university.</div></li>
-              <li><span class="mono">IV.</span><div><b>The institution.</b> A charter, elections, member matriculation, and a term debate competition, so the Union outlasts any one class.</div></li>
-            </ol>
-          </div>
-
-          <div class="motions" aria-label="Motions and guests the Union has hosted">
-            <div class="motions-track">
-              <span>“Do We Need Marxism Today?” · Phil Magness v. Clara Mattei</span>
-              <span>Sir Niall Ferguson on AI &amp; the Future of Education</span>
-              <span>Jason Calacanis, Dave Rubin &amp; Joe Lonsdale</span>
-              <span>“Is America a Christian Nation?”</span>
-              <span>“Does Urbanization Promote Human Flourishing?”</span>
-              <span>“Is America Still a Republic?”</span>
-              <span>“Is Political Violence Ever Justified?”</span>
-              <span>Jonathan Pageau: AI &amp; Transhumanism</span>
-              <span>“Do the Gracchi Need to Die for the Republic to Survive?”</span>
-            </div>
-          </div>
-
-          <div class="guest-grid">
-            <div class="guest"><span class="mono">guest address</span><b>Sir Niall Ferguson</b><i>AI and the future of education</i></div>
-            <div class="guest"><span class="mono">debate</span><b>Phil Magness v. Clara Mattei</b><i>Do we need Marxism today?</i></div>
-            <div class="guest"><span class="mono">panel</span><b>Calacanis · Rubin · Lonsdale</b><i>Austin, May</i></div>
-            <div class="guest"><span class="mono">guest address</span><b>Jonathan Pageau</b><i>AI and transhumanism</i></div>
-          </div>
-
-          <div class="union-links">
-            <a class="btn union-btn" href="https://www.austinunion.org" target="_blank" rel="noopener">austinunion.org ↗</a>
-            <a class="btn ghost" href="https://www.youtube.com/@AustinUnionSociety" target="_blank" rel="noopener">YouTube ↗</a>
-            <a class="btn ghost" href="https://x.com/austin_union" target="_blank" rel="noopener">X ↗</a>
-            <a class="btn ghost" href="https://www.instagram.com/austinunionsociety/" target="_blank" rel="noopener">Instagram ↗</a>
-          </div>
-
-          <div class="photo-grid" data-gallery="union" hidden></div>
-        </div>
-      </section>
-    </div>
-
-    <!-- ===================== ZONE 3: SURFACE ===================== -->
-    <div class="zone" id="zone-surface" data-zone="surface">
-      <section id="surface" class="section">
-        <div class="section-head">
-          <p class="eyebrow mono">05 / surface · policy &amp; venture</p>
-          <h2>Touchdown: Washington, D.C.</h2>
-        </div>
-
-        <ol class="timeline">
-          <li class="panel reveal">
-            <div class="tl-when mono">Jun – Aug 2025</div>
-            <div class="tl-body">
-              <h3>Policy Intern <span class="at">· White House Office of Science and Technology Policy</span></h3>
-              <ul class="bullets">
-                <li>Contributed to executive order development by gathering data and supporting policymakers.</li>
-                <li>Drafted and coordinated public government communications and resource offerings.</li>
-                <li>Supported the OSTP Director with scheduling, travel, and meetings with federal and non-USG stakeholders; hosted White House visitors, including foreign dignitaries.</li>
-              </ul>
-            </div>
-          </li>
-          <li class="panel reveal">
-            <div class="tl-when mono">Dec 2024 – Jan 2025</div>
-            <div class="tl-body">
-              <h3>Defense Team Intern <span class="at">· 8VC</span></h3>
-              <ul class="bullets">
-                <li>Analyzed business models and startup ecosystems for investment evaluation.</li>
-                <li>Wrote the quarterly report on the top 50 portfolio companies that went out to LPs.</li>
-                <li>Ran a deep-dive research project reviewed by the general partners, with exposure to government contracting.</li>
-              </ul>
-            </div>
-          </li>
-          <li class="panel reveal">
-            <div class="tl-when mono">Nov 2024 – Feb 2025</div>
-            <div class="tl-body">
-              <h3>Research Intern <span class="at">· AlphaX</span></h3>
-              <ul class="bullets">
-                <li>Designed robotics curricula for gt.school and Alpha High School based on research into pedagogical best practices.</li>
-                <li>Wrote a 25-page curriculum proposal and sourced cost-effective VR teaching tools.</li>
-              </ul>
-            </div>
-          </li>
-        </ol>
-        <div class="ground-spacer" aria-hidden="true"></div>
-      </section>
-    </div>
-
-    <!-- ===================== ZONE 4: UNDERGROUND ===================== -->
-    <div class="zone" id="zone-underground" data-zone="underground">
-      <div class="breach mono" aria-hidden="true">— breaking ground —</div>
-
-      <section id="underground" class="section">
-        <div class="section-head">
-          <p class="eyebrow mono">06 / underground · tunneling</p>
-          <h2>Beneath the surface</h2>
-        </div>
-
-        <article class="panel job reveal">
-          <div class="job-head">
-            <div>
-              <p class="kicker mono">Jun 2026 – present · Bastrop, TX</p>
-              <h3>Software Engineering Intern <span class="at">· The Boring Company</span></h3>
-            </div>
-          </div>
-          <ul class="bullets">
-            <li>Built the company's first automated network integration testing (NIT) system for TBM cameras and switches.</li>
-            <li>Built a PowerShell agent and web app that let internal users configure TV displays without manual setup.</li>
-            <li>Supported daily tunnel operations, keeping the gap-sensing device reliable.</li>
-          </ul>
-          <ul class="tags"><li>TypeScript</li><li>Django</li><li>TanStack</li><li>Docker</li><li>PowerShell</li></ul>
-        </article>
-
-        <article class="panel job reveal">
-          <div class="job-head">
-            <div>
-              <p class="kicker mono">UATX · NABC 2027</p>
-              <h3>Software &amp; Mechanical Lead <span class="at">· UATXcavators</span></h3>
-            </div>
-          </div>
-          <p class="job-sub">UATX's tunneling team. We're building a <strong>DN600 slurry micro-TBM</strong> for the Not-a-Boring
-            Competition: parametric CAD in CadQuery, hand calcs, collision audits, and the PLC-driven control station for our
-            vertical tunneling machine.</p>
-          <div class="lab-grid tight">
-            <article class="lab-card reveal" data-demo="demos/tbm-viewer/" data-title="DN600 microTBM: spindle mount viewer">
-              <div class="lab-preview art-tbm" aria-hidden="true">
-                <svg viewBox="0 0 200 120"><g class="spin" fill="none" stroke="currentColor" stroke-width="1.2">
-                  <circle cx="100" cy="60" r="48"/><circle cx="100" cy="60" r="32" stroke-dasharray="3 3"/><circle cx="100" cy="60" r="9"/>
-                  <path d="M100 12v96M52 60h96M66 26l68 68M134 26l-68 68"/>
-                  <circle cx="100" cy="22" r="3"/><circle cx="138" cy="60" r="3"/><circle cx="100" cy="98" r="3"/><circle cx="62" cy="60" r="3"/></g></svg>
-              </div>
-              <div class="lab-text">
-                <p class="kicker mono">3D CAD · three.js</p>
-                <h3>microTBM Assembly Viewer</h3>
-                <p>Orbit, section, and explode our cutterhead spindle mount across design revisions, and step through the assembly sequence.</p>
-                <div class="card-actions">
-                  <button class="btn primary launch">Launch viewer</button>
-                  <a class="btn ghost" href="https://github.com/Sam-Indyk/uatxcavators-tbm" target="_blank" rel="noopener">Source ↗</a>
-                </div>
-              </div>
-            </article>
-            <a class="lab-card reveal linkcard" href="https://github.com/Sam-Indyk/UatxcavatorsGUI" target="_blank" rel="noopener">
-              <div class="lab-preview art-hmi" aria-hidden="true">
-                <div class="hmi"><i></i><i></i><i></i><i class="on"></i><i></i><i class="on"></i><i class="warn"></i><i></i></div>
-              </div>
-              <div class="lab-text">
-                <p class="kicker mono">Controls · HMI</p>
-                <h3>Vertical Tunneling Machine Control Station</h3>
-                <p>The control center for our vertical tunneling machine: a Python operator GUI talking to the machine's PLC.</p>
-                <div class="card-actions"><span class="btn primary">GitHub ↗</span></div>
-              </div>
-            </a>
-          </div>
-          <div class="photo-grid" data-gallery="uatxcavators" hidden></div>
-        </article>
-      </section>
-
-      <section id="projects" class="section">
-        <div class="section-head">
-          <p class="eyebrow mono">07 / deeper · software</p>
-          <h2>More things I've built</h2>
-        </div>
-        <div class="proj-grid">
-          <div class="proj panel reveal soon">
-            <p class="kicker mono">Reinforcement learning</p>
-            <h3>Polytopia-Zero</h3>
-            <p>An AlphaZero-style ML platform for the strategy game Polytopia. I built a simulated game engine and developer
-              API, and I'm training a neural network through self-play with MCTS to learn joint policy and value functions.</p>
-            <ul class="tags"><li>MCTS</li><li>Self-play</li><li>Game engine</li></ul>
-            <span class="proj-link mono">playable demo coming soon</span>
-          </div>
-          <a class="proj panel reveal" href="https://github.com/Sam-Indyk/ares_prod" target="_blank" rel="noopener">
-            <p class="kicker mono">Market design</p>
-            <h3>ARES</h3>
-            <p>Auction-based Registration and Enrollment System. It plugs into the university's Populi API and replaces
-              first-come-first-served class registration with a token-based bidding market.</p>
-            <ul class="tags"><li>Ruby on Rails</li><li>Populi API</li><li>Docker</li></ul>
-            <span class="proj-link mono">github ↗</span>
-          </a>
-          <a class="proj panel reveal" href="https://github.com/Sam-Indyk/UATX_WeChat" target="_blank" rel="noopener">
-            <p class="kicker mono">Full-stack app</p>
-            <h3>UATX Marketplace &amp; Chat</h3>
-            <p>A student marketplace that matches textbook listings to classmates by shared courses, with chat, Stripe
-              Connect checkout, image uploads, 160+ backend tests, and CI-gated deploys.</p>
-            <ul class="tags"><li>FastAPI</li><li>React</li><li>TypeScript</li><li>Postgres</li></ul>
-            <span class="proj-link mono">github ↗</span>
-          </a>
-        </div>
-
-        <div class="panel skills reveal">
-          <div><p class="kicker mono">programming &amp; data</p><p>Python · TypeScript · R · Django · TanStack · Docker · Structured Text</p></div>
-          <div><p class="kicker mono">engineering tools</p><p>Inventor / Fusion 360 · Onshape · ANSYS · Phoenix Contact PLC · VFD software</p></div>
-          <div><p class="kicker mono">hands-on</p><p>Fabrication · sensor integration · control systems · web dev · oscilloscope / RF</p></div>
-        </div>
-      </section>
-
-      <section id="contact" class="section contact">
-        <p class="eyebrow mono">// you've reached the bottom of the shaft</p>
-        <h2>Let's build something.</h2>
-        <p class="section-sub">Whether it's orbital, underground, or somewhere in between, I'd love to hear about it.</p>
-        <div class="contact-grid">
-          <a class="contact-card panel" href="mailto:samuel.m.indyk@gmail.com"><span class="mono">email</span><b>samuel.m.indyk@gmail.com</b></a>
-          <a class="contact-card panel" href="https://www.linkedin.com/in/samuel-indyk-b790b1272/" target="_blank" rel="noopener"><span class="mono">linkedin</span><b>in/samuel-indyk ↗</b></a>
-          <a class="contact-card panel" href="https://github.com/Sam-Indyk" target="_blank" rel="noopener"><span class="mono">github</span><b>Sam-Indyk ↗</b></a>
-          <a class="contact-card panel" href="assets/Samuel_Indyk_Resume.pdf" target="_blank" rel="noopener"><span class="mono">résumé</span><b>Download PDF ↓</b></a>
-        </div>
-        <p class="ascend mono"><a href="#top">↑ return to orbit</a></p>
-      </section>
-    </div>
-  </main>
-
-  <footer class="foot mono">
-    <span>© <span id="yr"></span> Samuel Indyk</span>
-    <span>
-      <a href="mailto:samuel.m.indyk@gmail.com">email</a> ·
-      <a href="https://www.linkedin.com/in/samuel-indyk-b790b1272/" target="_blank" rel="noopener">linkedin</a> ·
-      <a href="https://github.com/Sam-Indyk" target="_blank" rel="noopener">github</a> ·
-      <a href="https://github.com/Sam-Indyk/Portfolio-Website" target="_blank" rel="noopener">source</a>
-    </span>
+  <footer class="chrome bottom">
+    <span id="zone" class="mono">Low Earth orbit · 408 km</span>
+    <span class="mono hint" id="hint">Scroll</span>
   </footer>
 
-  <dialog id="demo-modal" class="modal">
-    <div class="modal-bar">
-      <span class="modal-title mono" id="modal-title"></span>
-      <div class="modal-actions">
-        <a class="btn ghost small" id="modal-newtab" target="_blank" rel="noopener">Full page ↗</a>
-        <button class="btn small" id="modal-close" aria-label="Close demo">✕</button>
-      </div>
-    </div>
-    <iframe id="modal-frame" title="Live demo"></iframe>
-  </dialog>
+  <!-- hover reticle -->
+  <div id="reticle" aria-hidden="true">
+    <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+    <span class="tag mono" id="reticle-tag"></span>
+  </div>
 
-  <script src="js/photos.js"></script>
-  <script src="js/galaxies.js"></script>
-  <script src="js/world.js"></script>
-  <script src="js/main.js"></script>
+  <!-- detail panel -->
+  <aside id="panel" aria-hidden="true">
+    <button class="close link" id="panel-close" aria-label="Close">Close <kbd>Esc</kbd></button>
+    <div id="panel-body"></div>
+  </aside>
+
+  <!-- index overlay -->
+  <section id="index" aria-hidden="true">
+    <div class="index-inner">
+      <button class="close link" id="index-close">Close <kbd>Esc</kbd></button>
+      <h2 class="serif">Index</h2>
+      <ol id="index-list"></ol>
+      <div class="index-contact">
+        <a class="link" href="mailto:samuel.m.indyk@gmail.com">samuel.m.indyk@gmail.com</a>
+        <a class="link" href="https://www.linkedin.com/in/samuel-indyk-b790b1272/" target="_blank" rel="noopener">LinkedIn</a>
+        <a class="link" href="https://github.com/Sam-Indyk" target="_blank" rel="noopener">GitHub</a>
+        <a class="link" href="/assets/Samuel_Indyk_Resume.pdf" target="_blank" rel="noopener">Résumé</a>
+      </div>
+      <p class="credits mono">Earth: NASA Blue Marble · Clouds: Solar System Scope (CC BY 4.0) · Galaxies: Galaxy Zoo 2 / SDSS · Sky and materials: Poly Haven (CC0)</p>
+    </div>
+  </section>
+
+  <div id="loader" class="mono"><span id="loader-text">Loading</span></div>
+  <div id="scroll-space"></div>
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>
