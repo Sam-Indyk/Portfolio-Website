@@ -7,7 +7,7 @@ import { flagMap, windowMap, leafClusterMap, glowMap } from "../textures.js";
 import { pbr, triplanar } from "../pbr.js";
 import { LAWN } from "./terrain.js";
 
-export const CUT_Z = -12;        // the cross-section cut: the strata face below the plaza's front edge
+export const CUT_Z = 30;         // the cross-section cut: nothing stands in front of it, so from below the plaza sits behind its edge
 export const SLAB_W = 440;       // width of the strata face
 
 // Find the sun in an equirectangular HDR (its brightest region) as a direction.
@@ -28,6 +28,71 @@ function hdrSun(tex) {
 }
 
 const box = (w, h, d, x = 0, y = 0, z = 0) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
+
+export const AYE = "#d9b25a", NO = "#3e6fe0";   // the two sides' colours, on the lecterns and the banner
+
+// The chamber's banner, drawn on a canvas: the seal when idle; with a motion open, the motion and its
+// running tally. Width:height matches the banner mesh (4.2 x 6.2).
+function bannerArt(seal) {
+  const W = 640, H = 945;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  const serif = '"Instrument Serif", Georgia, serif', mono = '"JetBrains Mono", ui-monospace, monospace';
+  const cloth = () => {
+    const grd = g.createLinearGradient(0, 0, 0, H);
+    grd.addColorStop(0, "#5a0f1d"); grd.addColorStop(1, "#3c0812");
+    g.fillStyle = grd; g.fillRect(0, 0, W, H);
+    g.strokeStyle = "#c9a14a"; g.lineWidth = 3; g.strokeRect(22, 22, W - 44, H - 44);
+    g.lineWidth = 1.5; g.strokeRect(34, 34, W - 68, H - 68);
+  };
+  const wrap = (text, maxW) => {
+    const lines = [];
+    let line = "";
+    for (const w of text.split(" ")) {
+      const t = line ? `${line} ${w}` : w;
+      if (g.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t;
+    }
+    return [...lines, line];
+  };
+  let last = null;
+  function draw(m) {
+    last = m;
+    cloth();
+    g.textAlign = "center";
+    if (!m) {
+      g.drawImage(seal, W / 2 - 190, H * 0.42 - 190, 380, 380);
+    } else {
+      g.drawImage(seal, W / 2 - 62, 74, 124, 124);
+      g.fillStyle = "#c9a14a"; g.font = `500 21px ${mono}`;
+      g.fillText("THE HOUSE DEBATES", W / 2, 258);
+      g.fillStyle = "#f3e9da"; g.font = `76px ${serif}`;
+      const lines = wrap(m.title, W - 150);
+      const top = 470 - ((lines.length - 1) * 84) / 2;
+      lines.forEach((l, i) => g.fillText(l, W / 2, top + i * 84));
+      // Tally: gold for Aye, blue for No, split by share of the vote.
+      const total = m.ayes + m.noes, share = total ? m.ayes / total : 0.5, bx = 90, bw = W - 180, by = 720;
+      g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(bx, by, bw, 18);
+      if (total) {
+        g.fillStyle = AYE; g.fillRect(bx, by, bw * share, 18);
+        g.fillStyle = NO; g.fillRect(bx + bw * share, by, bw * (1 - share), 18);
+      }
+      g.font = `500 26px ${mono}`;
+      g.textAlign = "left"; g.fillStyle = AYE; g.fillText(`AYE ${m.known ? m.ayes : "–"}`, bx, by + 66);
+      g.textAlign = "right"; g.fillStyle = "#8fb0ff"; g.fillText(`${m.known ? m.noes : "–"} NO`, bx + bw, by + 66);
+      g.textAlign = "center"; g.fillStyle = "rgba(243,233,218,0.55)"; g.font = `500 19px ${mono}`;
+      g.fillText(total ? "VOTES CAST ONLINE" : "NO VOTES YET", W / 2, by + 122);
+    }
+    tex.needsUpdate = true;
+  }
+  draw(null);
+  // Redraw once the page's fonts arrive (the first draw may have used fallbacks).
+  document.fonts?.ready.then(() => draw(last));
+  return { tex, draw };
+}
 
 // One Ionic column of height h and lower radius r, as a single geometry: moulded base, fluted shaft
 // with entasis, and a capital with volutes. Instanced per building.
@@ -146,7 +211,7 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   const pavement = triplanar(new THREE.MeshLambertMaterial({ map: paveMaps.map, color: new THREE.Color(2.6, 2.45, 2.25), polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), 0.12);
   // A walkway from where the viewer lands up to a wider apron at the Union's steps; lawn either side.
   const plaza = new THREE.Mesh(mergeGeometries([
-    new THREE.PlaneGeometry(14, 56).translate(0, -26, 0),
+    new THREE.PlaneGeometry(14, 30).translate(0, -13, 0),
     new THREE.PlaneGeometry(44, 14).translate(0, 6, 0),
   ]), pavement);
   plaza.rotation.x = -Math.PI / 2; plaza.position.set(0, 0.02, 0); plaza.receiveShadow = true;
@@ -314,8 +379,9 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   const pedSeal = new THREE.Mesh(new THREE.CircleGeometry(1.7, 64), sealMat);
   pedSeal.position.set(0, 1 + AH + 1.5 + 1.75, AD / 2 + 0.72);
   au.add(pedSeal);
-  // Deep Union maroon, hung on a gilt rod with a thin gold border.
-  const banner = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 6.2), new THREE.MeshStandardMaterial({ color: 0x4a0b16, roughness: 0.95 }));
+  // Deep Union maroon, hung on a gilt rod; shows the seal, or the motion under debate (bannerArt).
+  const art = bannerArt(textures.seal.image);
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 6.2), new THREE.MeshStandardMaterial({ map: art.tex, roughness: 0.95, emissive: 0xffffff, emissiveMap: art.tex, emissiveIntensity: 0.1 }));
   banner.position.set(0, 6.0, -AD / 2 + 0.95);
   const gilt = new THREE.MeshStandardMaterial({ color: 0xc9a14a, metalness: 0.9, roughness: 0.35 });
   const bannerTrim = new THREE.Mesh(mergeGeometries([
@@ -323,16 +389,25 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
     new THREE.CylinderGeometry(0.06, 0.06, 4.9, 12).rotateZ(Math.PI / 2).translate(0, 3.25, 0.02),
   ]), gilt);
   bannerTrim.position.copy(banner.position).add(new THREE.Vector3(0, 0, 0.01));
-  au.add(bannerTrim);
-  const bannerSeal = new THREE.Mesh(new THREE.CircleGeometry(1.6, 64), new THREE.MeshStandardMaterial({ map: textures.seal, transparent: true, roughness: 0.7, emissive: 0xffffff, emissiveMap: textures.seal, emissiveIntensity: 0.12 }));
-  bannerSeal.position.set(0, 6.6, -AD / 2 + 0.97);
-  au.add(banner, bannerSeal);
+  au.add(bannerTrim, banner);
   const wood = triplanar(new THREE.MeshStandardMaterial({ map: woodMaps.map, roughnessMap: woodMaps.roughnessMap, color: 0x6b4128, roughness: 0.7 }), 1.2);
-  for (const sx of [-1, 1]) {
-    const lec = new THREE.Mesh(mergeGeometries([box(0.75, 1.1, 0.5, 0, 0.55), box(0.85, 0.06, 0.6, 0, 1.16, 0.04).rotateX(0)]), wood);
+  // Two lecterns facing off: Aye (gold) on the left as you look in, No (blue) on the right. Their
+  // front panels light in their side's colour while a motion is open.
+  const sides = [];
+  for (const [sx, hex] of [[-1, AYE], [1, NO]]) {
+    const lec = new THREE.Mesh(mergeGeometries([box(0.75, 1.1, 0.5, 0, 0.55), box(0.85, 0.06, 0.6, 0, 1.16, 0.04)]), wood);
+    const panelMat = new THREE.MeshStandardMaterial({ color: 0x2a1a12, roughness: 0.5, emissive: new THREE.Color(hex), emissiveIntensity: 0 });
+    const front = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.86), panelMat);
+    front.position.set(0, 0.56, 0.255);
+    lec.add(front);
     lec.position.set(sx * 4.2, 1.0, -AD / 2 + 4.2);
     lec.rotation.y = -sx * 0.55;
     au.add(lec);
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: new THREE.Color(hex), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0, fog: false }));
+    halo.position.set(sx * 4.2, 1.7, -AD / 2 + 4.9);
+    halo.scale.setScalar(3.2);
+    au.add(halo);
+    sides.push({ panelMat, halo, level: 0, target: 0 });
   }
   const part = (w, h, d, x, y, z) => box(w, h, d, x, y, z);
   const chairGeo = mergeGeometries([
@@ -365,7 +440,8 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   au.scale.setScalar(LAY.au[2]);
   group.add(au);
   const ay = (y) => y * LAY.au[2];
-  pickables.push({ id: "union", object: au, focus: { pos: new THREE.Vector3(6, ay(6.5), LAY.au[1] + 34), target: new THREE.Vector3(0, ay(6), LAY.au[1] - 2) } });
+  // Opening the Union flies inside the hall to face the banner and both lecterns.
+  pickables.push({ id: "union", object: au, focus: { pos: new THREE.Vector3(0, ay(4.8), LAY.au[1] + ay(7.6)), target: new THREE.Vector3(0, ay(4.2), LAY.au[1] - ay(8)) }, shift: 0.13 });
 
   // ---------- trees ----------
   // Crowns built from alpha-cut leaf cards; card normals point away from the crown centre so the
@@ -406,6 +482,7 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   };
   const free = (x, z) => clear.every(([cx, cz, r]) => Math.hypot(x - cx, z - cz) > r)
     && !(Math.abs(x) < 70 && z > -48)                           // open, sunlit lawn in front of the Union
+    && z < CUT_Z - 4
     && sight(x, z, LAY.wh, 34) && sight(x, z, LAY.ro, 24);
   // At an 8° sun each tree throws a ~70 m shadow, so the park is planted sparsely.
   for (let tries = 0; spots.length < (isMobile ? 100 : 170) && tries < 8000; tries++) {
@@ -430,7 +507,7 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   // Lamps in pairs along the walkway.
   const lampMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.6, roughness: 0.4 });
   const globe = new THREE.MeshStandardMaterial({ color: 0xfff0d8, emissive: 0xffc77a, emissiveIntensity: 4 });
-  const lamps = [-10, -10, 6, 6, 22, 22, 38, 38, 54, 54].map((z, i) => [(i % 2 ? 1 : -1) * 8.5, z]);
+  const lamps = [-10, -10, 6, 6, 22, 22].map((z, i) => [(i % 2 ? 1 : -1) * 8.5, z]);
   const posts = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.07, 0.1, 4, 8), lampMat, lamps.length);
   const globes = new THREE.InstancedMesh(new THREE.SphereGeometry(0.28, 12, 8), globe, lamps.length);
   lamps.forEach(([x, z], i) => {
@@ -440,8 +517,27 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   });
   group.add(posts, globes);
 
+  // The chamber during a vote: the banner shows the motion and tally, and the leading side's lectern
+  // glows brighter. show({ title, ayes, noes, known }), hide().
+  const chamber = {
+    show(m) {
+      art.draw(m);
+      const total = m.ayes + m.noes, share = total ? m.ayes / total : 0.5;
+      sides[0].target = 0.45 + share * 1.1;
+      sides[1].target = 0.45 + (1 - share) * 1.1;
+    },
+    hide() { art.draw(null); for (const s of sides) s.target = 0; },
+  };
+
   return {
-    group, pickables, envMap, skyRotation, sun, hemi, fill, sunDir: SUN_DIR,
-    update(t) { time.value = t * 0.001; },
+    group, pickables, envMap, skyRotation, sun, hemi, fill, sunDir: SUN_DIR, chamber,
+    update(t) {
+      time.value = t * 0.001;
+      for (const s of sides) {
+        s.level += (s.target - s.level) * 0.06;
+        s.panelMat.emissiveIntensity = s.level * 0.9;
+        s.halo.material.opacity = Math.min(0.8, s.level * 0.45);
+      }
+    },
   };
 }

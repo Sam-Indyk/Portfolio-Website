@@ -17,6 +17,7 @@ function dive(from, k) {
 }
 
 export const CUT_T = 0.18;     // the jump from the orbit band to the local sky
+const CUT = 30, DEEP = -100;   // the cut face (CUT_Z, surface.js) and the DN600's depth (BORE.y, underground.js)
 export const SURFACE_T = 0.47; // standing in front of the Union
 export const OUTRO_FROM = 0.92;
 
@@ -28,18 +29,25 @@ const KEYS = [
   { t: CUT_T - 0.001, ...dive(V(0, 520, 50), 0.82) },
   // Local world: metres above the plaza, which sits at the origin.
   { t: CUT_T, cut: true, pos: V(0, 3600, 10500), pitch: -24 },
-  { t: 0.225, pos: V(0, 2900, 7600), pitch: -11, at: ["polytopia"] },
+  // Above the cloud sea, turned toward the Polytopia island (polytopia.js) off to the right.
+  { t: 0.225, pos: V(0, 2875, 7650), pitch: -12.5, yaw: 20, at: ["polytopia"] },
   { t: 0.27, pos: V(0, 2250, 5400), pitch: -26 },
   { t: 0.31, pos: V(0, 1450, 3900), pitch: -27 },
   { t: 0.37, pos: V(0, 520, 1650), pitch: -19 },
   { t: 0.42, pos: V(0, 70, 290), pitch: -8 },
   { t: SURFACE_T, pos: V(0, 4.2, 36), pitch: 2.5, at: ["union", "whitehouse", "rotunda"] },
-  { t: 0.53, pos: V(0, 3.6, 31), pitch: 1 },
-  { t: 0.6, pos: V(-3, -6, 50), pitch: 0 },
-  { t: 0.68, pos: V(-2, -17, 34), pitch: 0, at: ["tunnel"] },
-  { t: 0.84, pos: V(12.3, -27.35, -8.6), pitch: 0, at: ["dn600"] },
-  { t: 0.89, pos: V(12.3, -27.35, -8.6), pitch: 0 },
-  { t: 1.0, pos: V(12.3, -27.35, -8.6), pitch: 0 },
+  // Underground: back off from the cut face and sink through the ground, stop at the Loop tunnel,
+  // drop through the strata to the DN600's level, then close in as it reaches the centre.
+  { t: 0.515, pos: V(0, 3.4, 44), pitch: 0 },
+  { t: 0.555, pos: V(0, -7, CUT + 32), pitch: -3 },
+  { t: 0.6, pos: V(0, -13.6, CUT + 28), pitch: 0, at: ["tunnel"] },
+  { t: 0.65, pos: V(0, -36, CUT + 32), pitch: -3 },
+  { t: 0.71, pos: V(0, -80, CUT + 30), pitch: -3 },
+  { t: 0.76, pos: V(-2, DEEP + 1.4, CUT + 20), pitch: -1.5 },
+  { t: 0.82, pos: V(-0.5, DEEP + 0.6, CUT + 11), pitch: -1 },
+  // The machine's body (head at x = 0, tail at x ≈ -1.3) centred in frame for the close.
+  { t: 0.865, pos: V(-0.55, DEEP + 0.35, CUT + 4.4), pitch: -2, at: ["dn600"] },
+  { t: 1.0, pos: V(-0.55, DEEP + 0.85, CUT + 5.2), pitch: 3 },   // drifts so the machine sits under the closing words
 ];
 // Phones: the orbit band is laid out taller (see space.js); on the surface the camera pans along
 // the row, one building at a time, so nothing is shrunk to fit a narrow screen.
@@ -50,18 +58,21 @@ const PORTRAIT_KEYS = [
   { t: 0.165, ...dive(V(0, 520, 80), 0.6) },
   { t: CUT_T - 0.001, ...dive(V(0, 520, 80), 0.82) },
   { t: CUT_T, cut: true, pos: V(0, 3600, 10500), pitch: -24 },
-  { t: 0.225, pos: V(0, 2900, 7600), pitch: -11, at: ["polytopia"] },
+  { t: 0.225, pos: V(0, 2900, 7850), pitch: -10, yaw: 12, at: ["polytopia"] },
   { t: 0.27, pos: V(0, 2250, 5400), pitch: -26 },
   { t: 0.31, pos: V(0, 1450, 3900), pitch: -27 },
   { t: 0.37, pos: V(0, 520, 1650), pitch: -19 },
-  { t: 0.41, pos: V(-60, 30, 160), pitch: -4, yaw: -14, at: ["whitehouse"] },
+  { t: 0.41, pos: V(-60, 18, 110), pitch: -2, yaw: -1, at: ["whitehouse"] },
   { t: SURFACE_T, pos: V(0, 6, 76), pitch: 4, at: ["union"] },
-  { t: 0.53, pos: V(40, 12, 60), pitch: 0, yaw: 16, at: ["rotunda"] },
-  { t: 0.6, pos: V(20, -8, 60), pitch: 0 },
-  { t: 0.68, pos: V(-6, -17, 26), pitch: 0, at: ["tunnel"] },
-  { t: 0.84, pos: V(12.3, -27.35, -8.6), pitch: 0, at: ["dn600"] },
-  { t: 0.89, pos: V(12.3, -27.35, -8.6), pitch: 0 },
-  { t: 1.0, pos: V(12.3, -27.35, -8.6), pitch: 0 },
+  { t: 0.53, pos: V(35, 8, 50), pitch: -1, yaw: 6, at: ["rotunda"] },
+  { t: 0.56, pos: V(0, -7, CUT + 40), pitch: -3 },
+  { t: 0.6, pos: V(0, -13.6, CUT + 36), pitch: 0, at: ["tunnel"] },
+  { t: 0.65, pos: V(0, -36, CUT + 40), pitch: -3 },
+  { t: 0.71, pos: V(0, -80, CUT + 38), pitch: -3 },
+  { t: 0.76, pos: V(-1, DEEP + 1.6, CUT + 24), pitch: -1.5 },
+  { t: 0.82, pos: V(-0.3, DEEP + 0.7, CUT + 13), pitch: -1 },
+  { t: 0.865, pos: V(-0.6, DEEP + 0.35, CUT + 7.6), pitch: -2, at: ["dn600"] },
+  { t: 1.0, pos: V(-0.6, DEEP + 0.95, CUT + 8.4), pitch: 3 },
 ];
 
 export class Rail {

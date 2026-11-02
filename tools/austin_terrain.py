@@ -150,7 +150,8 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
 
     far = grade(naip_tiled(*FAR["x"], *FAR["z"], 4096, "naip-far"))
-    far.save(OUT / "naip-far.webp", quality=80, method=6)
+    # Seen only from 1.5 km up (closer ground uses naip-near), so ~8.5 m/px is plenty.
+    far.resize((3072, 3072), Image.LANCZOS).save(OUT / "naip-far.webp", quality=78, method=6)
     far.resize((2048, 2048), Image.LANCZOS).save(OUT / "naip-far-2k.webp", quality=80, method=6)
     near = paint_park(grade(naip(-NEAR_HALF, NEAR_HALF, -NEAR_HALF, NEAR_HALF, 2048, "naip-near.jpg")))
     near.save(OUT / "naip-near.webp", quality=82, method=6)

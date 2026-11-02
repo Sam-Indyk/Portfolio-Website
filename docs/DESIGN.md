@@ -10,15 +10,20 @@ Agreed with Sam on 2026-10-29. This replaces the v1 prototype ("stacked slides")
   out at eye height in front of the Union. Ground runs to the horizon; no floating slab.
 - **Surface:** Union close and dominant; White House and rotunda well back to either side; banner in
   deep maroon. Plaza site: the upland west of MoPac, east of the Mount Bonnell bluff, facing the sunset.
-- **Union click (to build):** lecterns lit gold (Aye) and deep blue (No), the leading side glowing;
-  past Union motions rotate on the banner; visitors vote; tallies kept in Supabase.
-- **Polytopia (to build):** a floating island of tiles above the cloud sea playing a real agent game
-  from the replay data. The fossil goes.
-- **Underground (to build):** a long, deep descent through strata like v1; the TBC tunnel finished with
-  Teslas driving through; the DN600 creeps across the screen with scroll and ends centred for the
-  closing zoom, with the outro over it.
-- **ISCR (to build):** bigger and further forward; turns toward the cursor; data pulses across the
-  panels, laser links to Earth, lit compute underneath.
+- **Union click:** flies inside the hall; the banner shows the motion and a gold/blue tally, the
+  lecterns light gold (Aye) and blue (No), the leading side brighter. Five past motions rotate per
+  visit; visitors vote and can change their vote; tallies in Supabase (capped per network). The panel
+  carries the Union's mission in maroon and gold ("Truth through debate."), as v1 did.
+- **Polytopia:** a floating island above the cloud sea replaying the real game from the replay data
+  (trained agent, blue, vs. lookahead bot, red), looping. The fossil is gone.
+- **Underground:** the cut face sits in front of the plaza; a soil wipe on the way down; formations
+  with survey marks every 10 m to −100 m; the Loop tunnel finished with cars driving through; the DN600
+  bores across with the scroll and finishes centred, with the closing words over it.
+- **ISCR:** bigger and forward; turns toward the cursor; compute pulses across the cells and edges;
+  laser downlinks to Austin and a second station.
+- **Loading:** the opening shows once orbit is in; scrolling stays locked until everything (including
+  material textures) has loaded and been drawn once offscreen. Panel, Index and demos scroll with the
+  wheel (`data-lenis-prevent`).
 
 ## Concept
 

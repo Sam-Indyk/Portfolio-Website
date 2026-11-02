@@ -188,13 +188,45 @@ export function buildSpace({ textures, galaxyMeta, isMobile, portrait = false })
   galaxyMesh.renderOrder = -11;
   group.add(galaxyMesh);
 
-  // ---------- ISCR array ----------
+  // ---------- ISCR array: orbital AI compute ----------
+  // Each panel is solar cells, compute and a radiator in one. The compute shows as activity: pulses
+  // run out from the bus across the cells and along the rows, and the panel edges glow with it.
   const iscr = new THREE.Group();
   const cols = isMobile ? 16 : 22, rows = isMobile ? 6 : 8, pw = 1.7, gap = 0.06;
   const edge = new THREE.MeshStandardMaterial({ color: 0xb8bcc2, metalness: 0.85, roughness: 0.35 });
   const radiator = new THREE.MeshStandardMaterial({ color: 0xeeeeea, metalness: 0.0, roughness: 0.55 });
-  const cellsMat = new THREE.MeshPhysicalMaterial({ map: solarCells(6), metalness: 0.2, roughness: 0.42, clearcoat: 1, clearcoatRoughness: 0.08, color: 0x9fb6ff });
-  const panels = new THREE.InstancedMesh(new THREE.BoxGeometry(pw, 0.09, pw), [edge, edge, cellsMat, radiator, edge, edge], cols * rows);
+  const cellsMat = new THREE.MeshPhysicalMaterial({ map: solarCells(6), metalness: 0.2, roughness: 0.42, clearcoat: 1, clearcoatRoughness: 0.08, color: 0x9fb6ff, emissive: 0x5ac8ff });
+  const panelEdge = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: 0.8, roughness: 0.35, emissive: 0x5ac8ff });
+  const pulseTime = { value: 0 };
+  const pulses = (mat, cells) => {
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uPulse = pulseTime;
+      sh.vertexShader = sh.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying vec2 vPanel; varying vec2 vCellUv;")
+        .replace("#include <uv_vertex>", "#include <uv_vertex>\nvPanel = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xz; vCellUv = uv;");
+      sh.fragmentShader = sh.fragmentShader
+        .replace("#include <common>", `#include <common>
+          uniform float uPulse; varying vec2 vPanel; varying vec2 vCellUv;
+          float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }`)
+        .replace("#include <emissivemap_fragment>", `
+          // Wavefronts leaving the bus at the centre, and packets running along each row.
+          float wave = fract(length(vPanel) / 22.0 - uPulse * 0.32);
+          float front = smoothstep(0.0, 0.015, wave) * (1.0 - smoothstep(0.015, 0.11, wave));
+          float row = floor(vPanel.y / 1.76 + 0.5);
+          float pk = fract(vPanel.x / 46.0 - uPulse * (0.18 + hash(vec2(row, 3.0)) * 0.3) + hash(vec2(row, 7.0)));
+          float packet = smoothstep(0.0, 0.015, pk) * (1.0 - smoothstep(0.015, 0.06, pk));
+          float panel = hash(floor(vPanel * 0.57));
+          float act = max(front * (0.3 + panel * 0.7), packet * 0.7) + 0.04;
+          ${cells ? `// Single cells flicker as the pulse passes, like activations.
+          vec2 cell = floor(vCellUv * 6.0);
+          act *= 0.2 + 0.8 * step(0.62, hash(cell + floor(uPulse * 9.0) + panel * 13.0));` : ""}
+          totalEmissiveRadiance *= act * ${cells ? "0.75" : "1.6"};`);
+    };
+    mat.customProgramCacheKey = () => `pulses-${cells}`;
+  };
+  pulses(cellsMat, true);
+  pulses(panelEdge, false);
+  const panels = new THREE.InstancedMesh(new THREE.BoxGeometry(pw, 0.09, pw), [panelEdge, panelEdge, cellsMat, radiator, panelEdge, panelEdge], cols * rows);
   const m = new THREE.Matrix4();
   let k = 0;
   for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
@@ -212,15 +244,55 @@ export function buildSpace({ textures, galaxyMeta, isMobile, portrait = false })
   const { map: gold, normalMap: goldN } = foilMaps([214, 176, 92]);
   const bus = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.8, 2.6), new THREE.MeshStandardMaterial({ map: gold, normalMap: goldN, metalness: 1, roughness: 0.32 }));
   bus.position.y = -1.4;
+  // Status lights on the bus.
+  const led = new THREE.MeshBasicMaterial({ color: 0x7fe0ff });
+  for (let i = 0; i < 6; i++) {
+    const l = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.05, 0.02), led);
+    l.position.set(-0.75 + i * 0.3, -1.0, 1.31);
+    bus.add(l);
+  }
   iscr.add(panels, spine, ribs, bus);
-  // The ISCR array is the centrepiece; the telescope and capsule sit at the edges (stacked on phones).
+  // The ISCR array is the centrepiece, large and forward; the telescope and capsule sit at the edges
+  // (stacked on phones). It hangs in a pivot that turns it toward the cursor.
   const L = portrait
-    ? { iscr: [0, 2, -10], tele: [-13, 38, -6], drag: [12, -30, 0] }
-    : { iscr: [0, 4, -14], tele: [-47, 13, -10], drag: [47, -9, -2] };
-  iscr.position.set(L.iscr[0], SPACE_Y + L.iscr[1], L.iscr[2]);
+    ? { iscr: [0, 3, 38], tele: [-14, 40, -8], drag: [13, -32, -2], scale: 1.15 }
+    : { iscr: [0, 7, 12], tele: [-50, 15, -30], drag: [50, -12, -24], scale: 1.25 };
+  const pivot = new THREE.Group();
+  pivot.position.set(L.iscr[0], SPACE_Y + L.iscr[1], L.iscr[2]);
+  pivot.scale.setScalar(L.scale);
   iscr.rotation.set(1.05, 0.32, -0.08);   // tilted to face the sun and the viewer
-  group.add(iscr);
-  pickables.push({ id: "iscr", object: iscr, focus: { pos: iscr.position.clone().add(new THREE.Vector3(10, 6, 44)), target: iscr.position.clone() } });
+  pivot.add(iscr);
+  group.add(pivot);
+  // The hover tag sits at the array's upper-left corner (its whole box runs off the top of the screen).
+  const tagAt = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2));
+  tagAt.visible = false;
+  tagAt.position.set(-span / 2, 0, -rows * (pw + gap) / 2);
+  iscr.add(tagAt);
+  pivot.updateMatrixWorld(true);
+  pickables.push({ id: "iscr", object: pivot, tagAnchor: tagAt, focus: { pos: pivot.position.clone().add(new THREE.Vector3(13, 8, 56)), target: pivot.position.clone() } });
+
+  // Laser downlinks from the bus to ground stations (one at Austin), packets running down them.
+  const beamMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uPulse: pulseTime },
+    vertexShader: `varying float vAlong; void main() { vAlong = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform float uPulse; varying float vAlong;
+      void main() {
+        float packets = pow(fract(vAlong * 14.0 + uPulse * 0.9), 10.0);
+        float a = (0.22 + packets * 0.9) * smoothstep(0.0, 0.08, vAlong) * smoothstep(1.0, 0.65, vAlong);
+        gl_FragColor = vec4(vec3(0.42, 0.85, 1.0) * a, 1.0);
+      }`,
+  });
+  const stations = [AUSTIN_DIR.clone(), AUSTIN_DIR.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), -0.16).applyAxisAngle(new THREE.Vector3(1, 0, 0), 0.05)];
+  const beams = stations.map((dir) => {
+    // A cylinder from y = 0 (the bus) to y = 1 (the ground), tapering wider with distance.
+    const g = new THREE.CylinderGeometry(3.2, 0.12, 1, 8, 1, true).translate(0, 0.5, 0);
+    const beam = new THREE.Mesh(g, beamMat);
+    beam.frustumCulled = false;
+    beam.renderOrder = -7;
+    group.add(beam);
+    return { beam, ground: EARTH.center.clone().addScaledVector(dir, EARTH.r) };
+  });
+  const busWorld = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion();
 
   // ---------- space telescope ----------
   const tele = new THREE.Group();
@@ -298,9 +370,23 @@ export function buildSpace({ textures, galaxyMeta, isMobile, portrait = false })
     setHaze(v) { haze.value = v; },
     // The regional Texas map arrives with the rest of the scene, after the opening frame.
     setTexas(tex, box) { texasMap.value = tex; texasBox.value.set(box.lon[0], box.lon[1], box.lat[0], box.lat[1]); texasOn.value = 1; },
-    update(t) {
+    // pointer: smoothed cursor in [-1, 1] (x right, y down), or null on touch screens.
+    update(t, pointer) {
       shared.shift.value = t * 0.0000018;
-      iscr.position.y = SPACE_Y + 6 + Math.sin(t * 0.0004) * 0.4;
+      pulseTime.value = t * 0.001;
+      // Turn the array's face toward the cursor; drift gently without one.
+      const px = pointer ? pointer.x : Math.sin(t * 0.00021) * 0.4, py = pointer ? pointer.y : Math.sin(t * 0.00017) * 0.3;
+      pivot.rotation.y += (px * 0.42 - pivot.rotation.y) * 0.06;
+      pivot.rotation.x += (py * 0.3 - pivot.rotation.x) * 0.06;
+      pivot.position.y = SPACE_Y + L.iscr[1] + Math.sin(t * 0.0004) * 0.4;
+      pivot.updateMatrixWorld();
+      bus.getWorldPosition(busWorld);
+      for (const b of beams) {
+        const d = b.ground.clone().sub(busWorld);
+        b.beam.position.copy(busWorld);
+        b.beam.quaternion.copy(q.setFromUnitVectors(up, d.clone().normalize()));
+        b.beam.scale.set(1, d.length(), 1);
+      }
       tele.rotation.z = -1.0 + Math.sin(t * 0.00015) * 0.05;
       dragon.rotation.y = 0.4 + t * 0.00003;
     },
