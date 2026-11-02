@@ -103,7 +103,7 @@ export function buildTerrain({ textures, sky, isMobile, base = "/" }) {
       .replace("#include <map_fragment>", `
         vec2 xz = vTW.xz;
         // The Loop's portal ramp cuts down through the lawn here (underground.js builds its walls).
-        if (abs(xz.x - ${RAMP.x.toFixed(1)}) < ${RAMP.half.toFixed(2)} && xz.y > ${RAMP.portal.toFixed(1)} && xz.y < ${RAMP.top.toFixed(1)}) discard;
+        if (xz.x > ${RAMP.x0.toFixed(1)} && xz.x < ${RAMP.x1.toFixed(1)} && xz.y > ${RAMP.z0.toFixed(1)} && xz.y < ${RAMP.z1.toFixed(1)}) discard;
         // Imagery: u runs east (z), v runs north (x).
         vec2 lonlat = vec2(origin.y + xz.y / origin.w, origin.x + xz.x / origin.z);
         vec3 c = texture2D(texasMap, vec2((lonlat.x - texLon.x) / (texLon.y - texLon.x), (lonlat.y - texLat.x) / (texLat.y - texLat.x))).rgb;

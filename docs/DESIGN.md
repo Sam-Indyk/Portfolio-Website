@@ -16,12 +16,13 @@ Agreed with Sam on 2026-10-29. This replaces the v1 prototype ("stacked slides")
   carries the Union's mission in maroon and gold ("Truth through debate."), as v1 did.
 - **Polytopia:** a floating island above the cloud sea replaying the real game from the replay data
   (trained agent, blue, vs. lookahead bot, red), looping. The fossil is gone.
-- **Underground (pass 3):** the way down follows a car: from the Union the camera pulls back behind a
-  car at the top of a Loop portal ramp east of the plaza, tails it down through an LED-ringed bored
-  curve into the tunnel, and swings out through the tunnel's open side into the cross-section. Then a
-  short drop (survey marks to −40 m) to a clearing (reception pit) where the DN600, now in line with
-  its bore and pipes, breaks through toward the camera; the control station there runs the team's
-  operator GUI (its own panel). One screen shorter than pass 2.
+- **Underground (pass 3, side-on):** below ground the camera never turns from the cut face. From the
+  Union it slides east over the lawn to a car waiting at the top of a Loop portal ramp cut through the
+  section, tracks it sideways down the ramp (the lawn falling away above, the rock layers behind),
+  and lets it drive on through the portal into the tunnel (LED half-rings). Then straight down past
+  survey marks to −40 m and the clearing (reception pit), where the DN600, in line with its bore and
+  pipes, breaks through; the close is a side-on push-in with the closing words above. The clearing's
+  control station runs the team's operator GUI (its own panel).
 - **Union click-to-vote:** a maroon-and-gold sign by the walkway shows the visit's motion and "Click to
   vote"; the Union's tag carries the same call.
 - **ISCR:** bigger and forward; turns toward the cursor; compute pulses across the cells and edges.
