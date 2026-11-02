@@ -16,6 +16,9 @@
 </head>
 <body>
   <canvas id="gl" aria-hidden="true"></canvas>
+  <div id="veil" aria-hidden="true"></div>
+  <div id="mist" aria-hidden="true"></div>
+  <div id="soil" aria-hidden="true"></div>
   <div id="tags" aria-hidden="true"></div>
 
   <!-- opening: name and quick links, fades on the first scroll -->
@@ -29,11 +32,11 @@
       <a href="/assets/Samuel_Indyk_Resume.pdf" target="_blank" rel="noopener">Résumé</a>
       <button id="hero-index">Index</button>
     </nav>
-    <a href="#" id="hero-down" class="mono">Scroll to descend ↓</a>
+    <a href="#" id="hero-down" class="mono"><span id="hero-down-text">Loading the descent</span></a>
   </section>
 
   <!-- demo theatre -->
-  <section id="theatre" aria-hidden="true">
+  <section id="theatre" aria-hidden="true" data-lenis-prevent>
     <div class="theatre-bar">
       <span class="mono" id="theatre-title"></span>
       <div>
@@ -76,13 +79,13 @@
   </div>
 
   <!-- detail panel -->
-  <aside id="panel" aria-hidden="true">
+  <aside id="panel" aria-hidden="true" data-lenis-prevent>
     <button class="close link" id="panel-close" aria-label="Close">Close <kbd>Esc</kbd></button>
     <div id="panel-body"></div>
   </aside>
 
   <!-- index overlay -->
-  <section id="index" aria-hidden="true">
+  <section id="index" aria-hidden="true" data-lenis-prevent>
     <div class="index-inner">
       <button class="close link" id="index-close">Close <kbd>Esc</kbd></button>
       <h2 class="serif">Index</h2>
@@ -93,7 +96,7 @@
         <a class="link" href="https://github.com/Sam-Indyk" target="_blank" rel="noopener">GitHub</a>
         <a class="link" href="/assets/Samuel_Indyk_Resume.pdf" target="_blank" rel="noopener">Résumé</a>
       </div>
-      <p class="credits mono">Earth: NASA Blue Marble · Clouds: Solar System Scope (CC BY 4.0) · Galaxies: Galaxy Zoo 2 / SDSS · Sky and materials: Poly Haven (CC0)</p>
+      <p class="credits mono">Earth: NASA Blue Marble · Clouds: Solar System Scope (CC BY 4.0) · Galaxies: Galaxy Zoo 2 / SDSS · Austin: USDA NAIP, USGS 3DEP · Sky and materials: Poly Haven (CC0)</p>
     </div>
   </section>
 

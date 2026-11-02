@@ -19,6 +19,15 @@ a { color: inherit; }
 
 #gl { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: pan-y; }
 #scroll-space { height: 1000vh; }
+/* Re-entry haze that covers the jump from the globe to the sky over Austin. */
+#veil { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse 120% 90% at 50% 60%, #dfe9f6 0%, #b9cde6 55%, #9db6d6 100%); }
+/* Inside the cloud deck: sunlit at the top of the screen, greyer below. */
+/* Through the ground on the way down. */
+#soil { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse 90% 70% at 50% 40%, #3a2618 0%, #23170e 60%, #130c07 100%); }
+#mist { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
+  background: linear-gradient(180deg, #f6ece2 0%, #e4dcd6 55%, #c9c6cb 100%); }
 
 /* ---------- chrome ---------- */
 .chrome { position: fixed; left: 0; right: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; padding: 22px clamp(18px, 3vw, 36px); pointer-events: none; }
@@ -45,7 +54,11 @@ kbd { font: 10px var(--mono); border: 1px solid var(--hair); border-radius: 3px;
 .hero-links a, .hero-links button { font: 400 14px var(--sans); color: var(--ink); text-decoration: none; padding: 9px 16px; border: 1px solid var(--hair);
   background: rgba(6, 7, 9, 0.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); cursor: pointer; transition: border-color .2s, background .2s; }
 .hero-links a:hover, .hero-links button:hover { border-color: rgba(242,239,232,.45); background: rgba(242,239,232,.08); }
-#hero-down { display: inline-block; margin-top: 44px; color: var(--ink-3); text-decoration: none; }
+#hero-down { display: inline-block; margin-top: 44px; color: var(--ink-3); text-decoration: none; position: relative; padding-bottom: 8px; }
+/* A hairline that fills while the descent loads, then fades. */
+#hero-down::after { content: ""; position: absolute; left: 0; bottom: 0; height: 1px; width: 100%; background: var(--ink-2);
+  transform-origin: left; transform: scaleX(var(--p, 0)); transition: transform 0.3s, opacity 0.8s; }
+.loaded #hero-down::after { opacity: 0; }
 #hero-down:hover { color: var(--ink); }
 .in-hero .top .name, .in-hero .hint, .in-hero .bottom #zone { opacity: 0; }
 .top .name, .bottom #zone { transition: opacity .5s; }
@@ -73,7 +86,7 @@ kbd { font: 10px var(--mono); border: 1px solid var(--hair); border-radius: 3px;
 /* ---------- closing frame ---------- */
 #outro { position: fixed; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
   text-align: center; padding: 15vh 24px 0; opacity: 0; pointer-events: none;
-  background: radial-gradient(ellipse 70% 40% at 50% 28%, rgba(3, 4, 6, 0.5), transparent 75%); }
+  background: radial-gradient(ellipse 80% 48% at 50% 28%, rgba(3, 4, 6, 0.72), transparent 78%); }
 #outro h2 { font-size: clamp(34px, 5.4vw, 76px); line-height: 1.08; margin: 0 0 40px; letter-spacing: -0.01em; text-shadow: 0 2px 30px rgba(0, 0, 0, 0.6); }
 #outro h2 em { color: var(--ink-2); }
 .outro-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px 30px; font-size: 16px; }
@@ -127,6 +140,9 @@ body.hovering, body.hovering #gl { cursor: pointer; }
 .eg-k input { flex: 1; accent-color: var(--ink); }
 
 /* ---------- index ---------- */
+/* While Lenis is stopped (loading, or a panel open) the page itself must not scroll natively either. */
+html.lenis.lenis-stopped { overflow: hidden; }
+#panel, #index, #theatre { overscroll-behavior: contain; }
 #index { position: fixed; inset: 0; z-index: 7; background: rgba(3, 4, 6, 0.86); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   opacity: 0; pointer-events: none; transition: opacity 0.4s; overflow-y: auto; }
 #index.open { opacity: 1; pointer-events: auto; }
@@ -160,3 +176,46 @@ body.hovering, body.hovering #gl { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   #panel, #reticle, #index { transition: none; }
 }
+
+/* ---------- Austin Union vote ---------- */
+.vote { margin: 24px 0 22px; padding: 18px 0 4px; border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair); }
+.vote-head { display: flex; justify-content: space-between; align-items: center; color: var(--ink-3); }
+.vote-steps { display: flex; gap: 14px; }
+.vote-steps .link { font-size: 16px; padding: 2px 4px; }
+.vote-title { font-size: 27px; line-height: 1.12; margin: 12px 0 18px; font-weight: 400; }
+.vote-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.vote-btn { padding: 12px 0; font: 500 14px var(--sans); letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
+  background: transparent; border: 1px solid; transition: background 0.2s, color 0.2s, opacity 0.2s; }
+.vote-btn.aye { color: #e3c47a; border-color: rgba(217, 178, 90, 0.55); }
+.vote-btn.no { color: #9db8ff; border-color: rgba(62, 111, 224, 0.6); }
+.vote-btn.aye:hover:not(:disabled), .vote-btn.aye.on { background: #d9b25a; color: #1a1306; }
+.vote-btn.no:hover:not(:disabled), .vote-btn.no.on { background: #3e6fe0; color: #fff; }
+.vote-btn:disabled:not(.on) { opacity: 0.45; cursor: default; }
+.vote-bar { height: 6px; margin: 16px 0 8px; background: #3e6fe0; }
+.vote-bar i { display: block; height: 100%; background: #d9b25a; transition: width 0.6s cubic-bezier(.2,.8,.2,1); }
+.vote-bar.empty { background: var(--hair); }
+.vote-bar.empty i { background: transparent; }
+.vote-count { color: var(--ink-2); margin: 0 0 12px; text-transform: none; letter-spacing: 0.04em; }
+
+/* ---------- the Union's panel: maroon and gold ---------- */
+#panel.union { width: min(500px, 100vw); border-left-color: rgba(217, 178, 106, 0.35);
+  background: radial-gradient(ellipse at 50% -10%, rgba(184, 36, 58, 0.42), transparent 60%), linear-gradient(180deg, rgba(36, 10, 16, 0.93), rgba(16, 8, 10, 0.95)); }
+#panel.union::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 260px; pointer-events: none;
+  background: repeating-linear-gradient(90deg, rgba(217, 178, 106, 0.06) 0 2px, transparent 2px 56px);
+  mask-image: linear-gradient(#000, transparent); -webkit-mask-image: linear-gradient(#000, transparent); }
+.u-head { position: relative; text-align: center; padding-bottom: 24px; border-bottom: 1px solid rgba(217, 178, 106, 0.25); }
+.u-head .p-seal { margin: 0 auto 14px; display: block; }
+.u-eyebrow { color: #d9b26a; letter-spacing: 0.2em; margin: 0 0 12px; }
+.u-motto { font: 600 44px/1.02 var(--serif); color: #f6ecd9; margin: 0; letter-spacing: -0.01em; }
+.u-role { font: 400 19px var(--serif); color: #d9b26a; margin: 12px 0 0; }
+.u-lead { font: 400 19px/1.5 var(--serif); color: #e8dcc6; margin: 22px 0 18px; }
+.docket { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 10px; }
+.docket li { display: grid; grid-template-columns: 30px 1fr; gap: 8px; padding: 12px 14px; border: 1px solid rgba(217, 178, 106, 0.2);
+  background: rgba(0, 0, 0, 0.22); color: #cdbfa6; font-size: 14.5px; line-height: 1.5; }
+.docket li > span { color: #d9b26a; padding-top: 2px; }
+.docket b { color: #f6ecd9; font-weight: 500; }
+#panel.union .vote { border-color: rgba(217, 178, 106, 0.25); margin: 4px 0 22px; }
+#panel.union .vote-head { color: #d9b26a; }
+#panel.union .p-body { color: #cdbfa6; }
+#panel.union .btn { border-color: rgba(217, 178, 106, 0.35); }
+#panel.union .btn:hover { background: rgba(184, 36, 58, 0.35); border-color: #d9b26a; }

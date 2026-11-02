@@ -4,9 +4,10 @@ import Lenis from "lenis";
 import { gsap } from "gsap";
 import "./style.css";
 import { ITEMS, INDEX } from "./content.js";
+import { voteHTML, mountVote, unmountVote } from "./union.js";
 import { setLoadingManager } from "./pbr.js";
 import { buildSpace, EARTH } from "./world/space.js";
-import { Rail, OUTRO_FROM } from "./rail.js";
+import { Rail, OUTRO_FROM, CUT_T } from "./rail.js";
 
 const BASE = import.meta.env.BASE_URL;
 const isMobile = matchMedia("(pointer: coarse)").matches || innerWidth < 700;
@@ -32,9 +33,26 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 const camera = new THREE.PerspectiveCamera(isMobile ? 55 : 40, innerWidth / innerHeight, 0.05, 14000);
 
-// ---------- loading: the orbit band first, everything else in the background ----------
+// ---------- loading ----------
+// The opening frame shows as soon as the orbit band is in. Scrolling stays locked until everything
+// else has loaded and been drawn once offscreen (see warm-up below), so nothing pops in or stalls
+// mid-descent. Every download goes through one manager, so one number tracks it all.
 const manager = new THREE.LoadingManager();
-manager.onProgress = (_, done, total) => { $("loader-text").textContent = `Loading ${Math.round((done / total) * 100)}%`; };
+const loading = { loaded: 0, total: 0, shown: 0, base: null };
+// Two phases: the opening band counts for the first quarter, the rest of the descent for the
+// remainder (it starts counting only once the opening is in, so the figure never runs ahead).
+const loadFraction = () => (loading.base ? 0.25 + 0.69 * (loading.loaded - loading.base) / Math.max(1, loading.total - loading.base) : 0.25 * loading.loaded / Math.max(1, loading.total));
+manager.onProgress = (_, loaded, total) => { loading.loaded = loaded; loading.total = total; showProgress(loadFraction()); };
+manager.onStart = (_, loaded, total) => { loading.loaded = loaded; loading.total = total; };
+function showProgress(f) {
+  loading.shown = Math.max(loading.shown, f);   // the last few percent are the warm-up
+  const pct = `${Math.round(loading.shown * 100)}%`;
+  $("loader-text").textContent = `Loading ${pct}`;
+  $("hero-down").style.setProperty("--p", loading.shown.toFixed(3));
+  $("hero-down-text").textContent = `Loading the descent · ${pct}`;
+}
+const managerIdle = () => new Promise((done) => { const check = () => (loading.loaded >= loading.total ? done() : setTimeout(check, 60)); check(); });
+const fetchAs = (url, kind) => { manager.itemStart(url); return fetch(url).then((r) => r[kind]()).finally(() => manager.itemEnd(url)); };
 const loader = new THREE.TextureLoader(manager);
 setLoadingManager(manager);
 const res = isMobile ? "2k" : "4k";
@@ -51,13 +69,15 @@ await Promise.all([
   loadTex("specular-2k", `${BASE}assets/earth/specular-2k.webp`, false),
   loadTex("galaxies", `${BASE}assets/galaxies.webp`),
 ]);
-const galaxyMeta = await fetch(`${BASE}assets/galaxies.json`).then((r) => r.json());
+const galaxyMeta = await fetchAs(`${BASE}assets/galaxies.json`, "json");
 const space = buildSpace({ textures, galaxyMeta, isMobile, portrait });
 scene.add(space.group);
 const pmrem = new THREE.PMREMGenerator(renderer);
 applyEnv(space.group, pmrem.fromScene(space.envScene, 0.02).texture, 1);
+for (const p of space.pickables) p.band = "space";
 const pickables = [...space.pickables];
-let surface = null, under = null;
+// The local world (sky over Austin, terrain, plaza, underground) arrives after the opening frame.
+let surface = null, under = null, sky = null, terrain = null, island = null, local = null, DECK = null;
 
 // Each band's PBR materials carry their own environment map, so the scene never swaps
 // scene.environment (which would recompile every shader mid-scroll).
@@ -73,44 +93,94 @@ function applyEnv(group, env, intensity) {
 const rail = new Rail({ portrait, aspect: innerWidth / innerHeight });
 
 async function loadRest() {
-  manager.onProgress = () => {};
+  loading.base = loading.loaded;
   await Promise.all([
     loadTex("seal", `${BASE}assets/au-seal.webp`),
-    loadTex("backdrop", `${BASE}assets/sky-backdrop.webp`),
-    new RGBELoader().loadAsync(`${BASE}assets/sky-1k.hdr`).then((t) => { textures.sky = t; }),
-    fetch(`${BASE}assets/sky-backdrop.json`).then((r) => r.json()).then((j) => { textures.backdropMeta = j; }),
+    loadTex("backdrop", `${BASE}assets/sky-backdrop.webp`, false),   // raw: the sky shader shows it as is
+    new RGBELoader(manager).loadAsync(`${BASE}assets/sky-1k.hdr`).then((t) => { textures.sky = t; }),
+    fetchAs(`${BASE}assets/sky-backdrop.json`, "json").then((j) => { textures.backdropMeta = j; }),
+    loadTex("naipFar", `${BASE}assets/austin/naip-far${isMobile ? "-2k" : ""}.webp`),
+    loadTex("naipNear", `${BASE}assets/austin/naip-near.webp`),
+    loadTex("texas", `${BASE}assets/austin/texas.webp`),
+    fetchAs(`${BASE}assets/austin/austin.json`, "json").then((j) => { textures.austinMeta = j; }),
+    fetchAs(`${BASE}assets/austin/dem.bin`, "arrayBuffer").then((b) => { textures.dem = b; }),
   ]);
-  const [{ buildSurface }, { buildUnderground }] = await Promise.all([import("./world/surface.js"), import("./world/underground.js")]);
+  const [{ buildSurface }, { buildUnderground }, skyMod, { buildTerrain }, { buildPolytopia }] = await Promise.all([
+    import("./world/surface.js"), import("./world/underground.js"), import("./world/sky.js"), import("./world/terrain.js"), import("./world/polytopia.js")]);
+  DECK = skyMod.DECK;
+  sky = skyMod.buildSky({ textures, isMobile });
+  terrain = buildTerrain({ textures, sky, isMobile, base: BASE });
+  space.setTexas(textures.texas, textures.austinMeta.texas);
+  island = await buildPolytopia({ base: BASE, fetchAs });
   surface = buildSurface({ textures, renderer, isMobile, base: BASE });   // phones pan along the full row
   applyEnv(surface.group, surface.envMap, 1);
-  under = await buildUnderground({ renderer, isMobile, base: BASE });
+  under = await buildUnderground({ renderer, isMobile, base: BASE, fetchAs });
   applyEnv(under.group, under.envMap, 0.15);   // underground, image light is only a faint fill for metal
-  scene.fog = surface.fog;                      // fog stays on the scene for good; only its range changes
-  scene.add(surface.group, under.group);
+  // Fog stays on the scene for good; only its range changes. Its colour is the sky's own horizon.
+  scene.fog = new THREE.Fog(sky.horizon, 200, 3000);
+  local = new THREE.Group();
+  local.add(sky.group, terrain.group, island.group, surface.group, under.group);
+  scene.add(local);
+  // Compile against the lights the local world will actually render with (the orbit band's hidden).
+  space.group.visible = false;
   await renderer.compileAsync(scene, camera);
-  renderer.shadowMap.needsUpdate = true;
-  addPickables([...surface.pickables, ...under.pickables]);
+  for (const p of under.pickables) p.under = true;
+  addPickables([...island.pickables, ...surface.pickables, ...under.pickables]);
+  // Material textures load on first use; wait for every one of them too.
+  await managerIdle();
 }
 
-// ---------- lighting by altitude: one continuous scene, so blend values rather than switch state ----------
-let galaxyTagFade = 1;
-function atmosphere(y, z) {
-  const inSpace = sstep(180, 340, y);
-  const overview = sstep(400, 1200, z);
-  space.setFade(sstep(380, 450, y) * (1 - sstep(260, 700, z)), Math.max(sstep(430, 500, y), overview));
-  space.sun.intensity = 3.4 * Math.max(inSpace, overview * 0.8);
-  galaxyTagFade = sstep(440, 500, y);
-  renderer.toneMappingExposure = y < -3 && z < 400 ? 1.05 : THREE.MathUtils.lerp(0.72, 1.0, Math.max(inSpace, overview * 0.4));
-  if (!surface || !scene.fog) return;
-  surface.setSkyOpacity(Math.max(1 - sstep(460, 505, y), overview), overview);
-  const ground = Math.max(sstep(-4, 10, y), overview);
-  surface.sun.intensity = 5.5 * (1 - sstep(260, 420, y) * (1 - overview)) * ground;
-  surface.hemi.intensity = THREE.MathUtils.lerp(0.06, 0.9 * (1 - inSpace * (1 - overview)), ground);
-  surface.fill.intensity = 0.9 * ground * (1 - inSpace);
-  // Haze only near the surface; none in orbit or in the closing overview.
-  const haze = y < 220 && z < 400;
-  scene.fog.near = haze ? 160 : 1e6;
-  scene.fog.far = haze ? 1100 : 2e6;
+// Whether a pickable is in play from where the camera is: its band, and for the local world, close
+// enough to the ground (plaza objects) or below it (underground objects).
+function inPlay(p) {
+  if (p.band !== band) return false;
+  if (band === "space") return !p.sphere || galaxyTagFade > 0.5;
+  const y = camera.position.y;
+  if (p.id === "polytopia") return y > 2000;
+  return p.under ? y < -2 : y > -1 && y < 160;
+}
+
+// ---------- by altitude: the orbit band until the cut, then the local world ----------
+let galaxyTagFade = 1, band = "space", shadowsDrawn = false;
+const veilEl = $("veil"), mistEl = $("mist"), soilEl = $("soil");
+function setClip(near, far) {
+  if (Math.abs(camera.near - near) / near < 0.05 && Math.abs(camera.far - far) / far < 0.05) return;
+  camera.near = near; camera.far = far;
+  camera.updateProjectionMatrix();
+}
+function atmosphere(pose, t) {
+  // Re-entry: the dive into the globe thickens into haze, which hides the cut to the sky over Austin.
+  const veil = sstep(0.164, CUT_T, t) * (1 - sstep(CUT_T + 0.002, CUT_T + 0.03, t));
+  veilEl.style.opacity = veil.toFixed(3);
+  band = pose.local && local ? "local" : "space";
+  space.group.visible = band === "space";
+  if (local) local.visible = band === "local";
+  mistEl.style.opacity = band === "local" ? sky.mistAt(pose.pos).toFixed(3) : "0";
+  // Going underground: a moment of soil as the camera passes through the ground.
+  soilEl.style.opacity = band === "local" ? sstep(1.6, 0.2, Math.abs(pose.pos.y + 0.6)).toFixed(3) : "0";
+  if (band === "space") {
+    space.setHaze(sstep(0.148, CUT_T, t) * 0.9);
+    galaxyTagFade = 1 - sstep(0.1, 0.13, t);
+    space.sun.intensity = 3.4;
+    renderer.toneMappingExposure = 1.0;
+    if (scene.fog) { scene.fog.near = 1e6; scene.fog.far = 2e6; }
+    setClip(0.5, 14000);
+    return;
+  }
+  if (!shadowsDrawn) { renderer.shadowMap.needsUpdate = true; shadowsDrawn = true; }   // static: once, when first seen
+  const y = pose.pos.y, alt = Math.max(y, 1);
+  sky.setClear(sstep(DECK.y0 + 60, DECK.y1 + 40, y));
+  const ground = sstep(-4, 0.5, y);
+  surface.sun.intensity = 5.5 * ground;
+  surface.hemi.intensity = THREE.MathUtils.lerp(0.06, 1.1, ground);
+  surface.fill.intensity = 0.9 * ground;
+  // Underground, and dimmer still under the closing words.
+  renderer.toneMappingExposure = (y < -3 ? 1.0 : 1.0) * (1 - 0.4 * sstep(OUTRO_FROM - 0.01, 0.975, t));
+  // Haze thins with altitude: from the plaza it closes in at a few kilometres, from the cloud deck
+  // the land stays visible for tens of kilometres.
+  scene.fog.near = y < -2 ? 200 : 140 + alt * 1.1;
+  scene.fog.far = y < -2 ? 3000 : 2800 + alt * 15;
+  setClip(THREE.MathUtils.clamp(alt * 0.012, 0.05, 30), 30000 + alt * 90);
 }
 
 // ---------- scrolling ----------
@@ -118,6 +188,9 @@ const lenis = new Lenis({ lerp: 0.085, wheelMultiplier: 0.9, touchMultiplier: 1.
 gsap.ticker.add((time) => lenis.raf(time * 1000));
 gsap.ticker.lagSmoothing(0);
 const progress = () => (lenis.limit > 0 ? clamp01(lenis.scroll / lenis.limit) : 0);
+let scrollLocked = true;   // until the whole descent has loaded
+lenis.stop();
+const resumeScroll = () => { if (!scrollLocked) lenis.start(); };
 
 // ---------- camera ----------
 const focus = { active: false, pos: new THREE.Vector3(), target: new THREE.Vector3(), mix: 0 };
@@ -129,14 +202,14 @@ function applyCamera(t) {
   camPos.copy(pose.pos); camTarget.copy(pose.target);
   // A whisper of parallax from the pointer (translation only, no rotation).
   mouse.sx += (mouse.x - mouse.sx) * 0.05; mouse.sy += (mouse.y - mouse.sy) * 0.05;
-  const k = pose.pos.z * 0.012;
+  const k = Math.min(Math.abs(pose.pos.z), 120) * 0.012;
   camPos.x += mouse.sx * k; camTarget.x += mouse.sx * k;
   camPos.y -= mouse.sy * k * 0.5; camTarget.y -= mouse.sy * k * 0.5;
   if (focus.mix > 0) { camPos.lerp(focus.pos, focus.mix); camTarget.lerp(focus.target, focus.mix); }
   camera.position.copy(camPos);
   camera.lookAt(camTarget);
   if (zoneEl.textContent !== pose.zone) zoneEl.textContent = pose.zone;
-  atmosphere(pose.pos.y, pose.pos.z);
+  atmosphere(pose, t);
   const hero = 1 - sstep(0.004, 0.045, t);
   heroEl.style.opacity = hero.toFixed(3);
   heroEl.style.pointerEvents = hero > 0.5 ? "auto" : "none";
@@ -186,7 +259,7 @@ let hovered = null;
 function pick(x, y) {
   let best = null, bestArea = Infinity;
   for (const p of pickables) {
-    if (p.sphere && galaxyTagFade < 0.5) continue;
+    if (!inPlay(p)) continue;
     const r = screenRect(p);
     if (!r || r.w > innerWidth * 1.3) continue;
     const pad = p.sphere ? 5 : 10;
@@ -221,6 +294,7 @@ const tagLayer = $("tags");
 const tags = [];
 function addPickables(list) {
   for (const p of list) {
+    p.band ||= "local";
     if (p.object) p.box = new THREE.Box3().setFromObject(p.object);
     if (p.tagAnchor) p.tagBox = new THREE.Box3().setFromObject(p.tagAnchor);
     pickables.push(p);
@@ -243,7 +317,7 @@ const galaxyAnchor = space.galaxyTagAnchor;
 function updateTags() {
   const show = !focus.active && !indexOpen && progress() < OUTRO_FROM && progress() > 0.03;
   for (const t of tags) {
-    const r = show && t.p !== hovered ? screenRect(t.p.tagBox ? { box: t.p.tagBox } : t.p) : null;
+    const r = show && t.p !== hovered && inPlay(t.p) ? screenRect(t.p.tagBox ? { box: t.p.tagBox } : t.p) : null;
     const on = !!r && r.y > 40 && r.y < innerHeight - 40;
     if (on !== t.on) { t.el.style.opacity = on ? 1 : 0; t.on = on; }
     if (!on) continue;
@@ -253,7 +327,7 @@ function updateTags() {
   }
   const g = v3.copy(galaxyAnchor).project(camera);
   const gy = (-g.y * 0.5 + 0.5) * innerHeight;
-  galaxyTag.style.opacity = show && galaxyTagFade > 0.5 && g.z < 1 && gy > 60 && gy < innerHeight - 60 ? 1 : 0;
+  galaxyTag.style.opacity = show && band === "space" && galaxyTagFade > 0.5 && g.z < 1 && gy > 60 && gy < innerHeight - 60 ? 1 : 0;
   galaxyTag.style.transform = `translate(${((g.x * 0.5 + 0.5) * innerWidth) | 0}px, ${gy | 0}px)`;
 }
 
@@ -315,9 +389,20 @@ function linksHTML(item) {
 async function fillPanel(p) {
   const item = ITEMS[p.id];
   panel.classList.toggle("wide", p.id === "polytopia" || p.id === "galaxy" || p.id === "tunnel");
+  panel.classList.toggle("union", p.id === "union");
   let html = "";
-  if (item.seal) html += `<img class="p-seal" src="${BASE}assets/au-seal.webp" alt="Austin Union Society seal">`;
-  html += `<p class="p-meta mono">${item.meta}</p><h2 class="p-title">${item.title}</h2><p class="p-body">${item.body}</p>`;
+  if (p.id === "union") {
+    // The Union's own page, in its maroon and gold: motto, mission, the vote, then how it runs.
+    const numerals = ["I", "II", "III", "IV", "V", "VI"];
+    html += `<header class="u-head"><img class="p-seal" src="${BASE}assets/au-seal.webp" alt="Austin Union Society seal">
+      <p class="u-eyebrow mono">${item.title}</p><h2 class="u-motto">${item.motto}</h2>
+      <p class="u-role">Samuel Indyk · <em>${item.meta}</em></p></header>
+      <p class="u-lead">${item.body}</p>${voteHTML()}
+      <ol class="docket">${item.docket.map(([b, s], i) => `<li><span class="mono">${numerals[i]}.</span><div><b>${b}.</b> ${s}</div></li>`).join("")}</ol>`;
+  } else {
+    if (item.seal) html += `<img class="p-seal" src="${BASE}assets/au-seal.webp" alt="Austin Union Society seal">`;
+    html += `<p class="p-meta mono">${item.meta}</p><h2 class="p-title">${item.title}</h2><p class="p-body">${item.body}</p>`;
+  }
   if (item.guests) html += `<p class="p-body">${item.guests}</p>`;
   if (item.points) html += `<ul class="p-points">${item.points.map((s) => `<li>${s}</li>`).join("")}</ul>`;
   if (item.figures) html += `<div class="p-figs">${item.figures.map(([b, s]) => `<div><b>${b}</b><span>${s}</span></div>`).join("")}</div>`;
@@ -326,6 +411,7 @@ async function fillPanel(p) {
   html += linksHTML(item);
   if (item.replay) html = html.replace('<div class="p-links">', `<div class="p-links"><button class="btn solid" data-demo="${item.replay}" data-title="Polytopia-Zero · trained agent (blue) vs. lookahead bot">Watch full screen</button>`);
   body.innerHTML = html;
+  if (p.id === "union") mountVote($("vote"), surface.chamber);
   if (p.id === "galaxy") {
     eigenMod = eigenMod || (await import("./eigen.js"));
     eigenData = eigenData || (await eigenMod.loadEigen(BASE));
@@ -346,7 +432,7 @@ function open(p) {
   // Shift the framing left so the object isn't hidden under the panel.
   const right = new THREE.Vector3().subVectors(focus.target, focus.pos).cross(camera.up).normalize();
   const dist = focus.pos.distanceTo(focus.target);
-  if (innerWidth > 800) focus.target.addScaledVector(right, dist * (panel.classList.contains("wide") || ["polytopia", "galaxy", "tunnel"].includes(p.id) ? 0.36 : 0.22));
+  if (innerWidth > 800) focus.target.addScaledVector(right, dist * (p.shift ?? (["polytopia", "galaxy", "tunnel"].includes(p.id) ? 0.36 : 0.22)));
   gsap.to(focus, { mix: 1, duration: 1.6, ease: "power3.inOut" });
   fillPanel(p);
   panel.classList.add("open");
@@ -355,9 +441,10 @@ function open(p) {
 
 function close() {
   if (!focus.active) return;
+  unmountVote();
   panel.classList.remove("open");
   panel.setAttribute("aria-hidden", "true");
-  gsap.to(focus, { mix: 0, duration: 1.3, ease: "power3.inOut", onComplete: () => { focus.active = false; lenis.start(); body.innerHTML = ""; } });
+  gsap.to(focus, { mix: 0, duration: 1.3, ease: "power3.inOut", onComplete: () => { focus.active = false; resumeScroll(); body.innerHTML = ""; } });
 }
 $("panel-close").addEventListener("click", close);
 
@@ -374,7 +461,7 @@ function toggleIndex(on) {
   indexOpen = on;
   indexEl.classList.toggle("open", on);
   indexEl.setAttribute("aria-hidden", String(!on));
-  if (on) { setHover(null); lenis.stop(); } else if (!focus.active) lenis.start();
+  if (on) { setHover(null); lenis.stop(); } else if (!focus.active) resumeScroll();
 }
 for (const id of ["open-index", "hero-index"]) $(id).addEventListener("click", () => toggleIndex(true));
 $("index-close").addEventListener("click", () => toggleIndex(false));
@@ -384,12 +471,13 @@ $("index-list").addEventListener("click", (e) => {
   const p = pickables.find((q) => q.id === b.dataset.id && (q.id !== "galaxy" || q.galaxy === 0));
   toggleIndex(false);
   if (!p) return;
-  lenis.scrollTo(rail.timeOf(p.id) * lenis.limit, { duration: 2.2, onComplete: () => setTimeout(() => open(p), 250) });
+  // Before the descent has loaded, the jump waits for it.
+  ready.then(() => lenis.scrollTo(rail.timeOf(p.id) * lenis.limit, { duration: 2.2, onComplete: () => setTimeout(() => open(p), 250) }));
 });
 const toTop = (e) => { e.preventDefault(); close(); lenis.scrollTo(0, { duration: 3 }); };
 $("home").addEventListener("click", toTop);
 $("outro-top").addEventListener("click", toTop);
-$("hero-down").addEventListener("click", (e) => { e.preventDefault(); lenis.scrollTo(rail.timeOf("iscr") * lenis.limit, { duration: 2 }); });
+$("hero-down").addEventListener("click", (e) => { e.preventDefault(); if (!scrollLocked) lenis.scrollTo(rail.timeOf("iscr") * lenis.limit, { duration: 2 }); });
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (closeDemo()) return;
@@ -414,19 +502,42 @@ function adapt(t) {
 }
 window.__perf = () => { const a = frameTimes.slice(-120).sort((x, y) => x - y); return { median: a[a.length >> 1], p90: a[Math.floor(a.length * 0.9)], calls: renderer.info.render.calls, tris: renderer.info.render.triangles, programs: renderer.info.programs.length, dpr: renderer.getPixelRatio() }; };
 
+// Warm-up: once loaded, draw the local world from a few points on the rail (one per frame, each
+// overdrawn by the real frame before it is shown), so its textures, buffers and shadows are on the
+// GPU before anyone scrolls there.
+let warm = null, warmDone = null;
+const ready = new Promise((r) => { warmDone = r; });
+function warmUp() {
+  const t = warm.shift(), pose = rail.pose(t);
+  camera.position.copy(pose.pos);
+  camera.lookAt(pose.target);
+  camera.updateMatrixWorld();
+  atmosphere(pose, t);
+  renderer.render(scene, camera);
+  showProgress(1 - warm.length * 0.006);
+  if (!warm.length) { warm = null; warmDone(); }
+}
+
 let scrolledOnce = false;
 renderer.setAnimationLoop((t) => {
+  const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
   if (lastT) { frameTimes.push(t - lastT); if (frameTimes.length > 240) frameTimes.splice(0, 120); }
   lastT = t;
-  adapt(t);
+  if (warm) warmUp();
+  else adapt(t);
   const pr = progress();
   if (!scrolledOnce && pr > 0.004) { scrolledOnce = true; document.body.classList.add("scrolled"); }
   applyCamera(pr);
   camera.updateMatrixWorld();
   camera.getWorldDirection(camDir);
-  space.update(t);
-  surface?.update(t);
-  under?.update(t);
+  if (band === "space") space.update(t, isMobile ? null : { x: mouse.sx, y: mouse.sy });
+  else {
+    sky.update(t); island.update(t, dt); surface.update(t);
+    // The DN600 creeps across as the descent goes deep, slowing as it reaches the centre.
+    const run = clamp01((pr - 0.6) / (rail.timeOf("dn600") - 0.6));
+    under.update(t, camera, 1 - (1 - run) * (1 - run));
+    if (camera.position.y < 0) for (const p of pickables) if (p.dynamic) p.box.setFromObject(p.object);
+  }
   if (pointerDirty && !focus.active && !indexOpen && pr <= OUTRO_FROM) { setHover(pick(pointerX, pointerY)); pointerDirty = false; }
   trackReticle();
   updateTags();
@@ -437,13 +548,18 @@ await renderer.compileAsync(scene, camera);
 requestAnimationFrame(() => document.body.classList.add("ready"));
 const rest = loadRest();
 
-window.__site = { space, get surface() { return surface; }, get under() { return under; }, camera, rail, rest };
+window.__site = { space, get surface() { return surface; }, get under() { return under; }, get sky() { return sky; }, get terrain() { return terrain; }, camera, rail, rest };
 window.__lenis = lenis;
 // Debug/screenshot hooks: ?t=0.5 jumps the rail, ?open=<id> opens a panel (?g=3 picks a galaxy), ?demo=<url>.
 const qs = new URLSearchParams(location.search);
 await rest;
+warm = [0.19, 0.225, 0.29, 0.38, 0.47, 0.6, 0.76, 0.86];
+await ready;
+scrollLocked = false;
+if (!focus.active && !indexOpen) lenis.start();
+$("hero-down-text").textContent = "Scroll to descend ↓";
 document.body.classList.add("loaded");
-for (const h of (qs.get("hide") || "").split(",").filter(Boolean)) ({ space, surface, under })[h].group.visible = false;
+for (const h of (qs.get("hide") || "").split(",").filter(Boolean)) ({ space, surface, under, sky, terrain })[h].group.visible = false;
 if (qs.has("t")) lenis.scrollTo(parseFloat(qs.get("t")) * lenis.limit, { immediate: true });
 if (qs.has("open")) {
   const id = qs.get("open");

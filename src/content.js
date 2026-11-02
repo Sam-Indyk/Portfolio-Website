@@ -2,10 +2,10 @@
 
 export const ITEMS = {
   iscr: {
-    label: "ISCR · 2026",
-    title: "Orbital compute panels",
+    label: "ISCR · AI compute in orbit",
+    title: "Orbital AI compute",
     meta: "arXiv:2604.07760 · 2026 · with S. Gaalema and C. Staley",
-    body: "Solar cells, compute and a vapor-chamber radiator in a single panel.",
+    body: "Solar cells, AI compute and a vapor-chamber radiator in a single panel, so a data centre can be launched flat and unfolded in orbit.",
     figures: [["~500 W/kg", "about 5× conventional"], ["16 MW", "16,000 panels"], ["1", "Starship launch"]],
     links: [["Paper", "https://arxiv.org/abs/2604.07760"]],
   },
@@ -36,7 +36,14 @@ export const ITEMS = {
     title: "Austin Union Society",
     meta: "President",
     seal: true,
-    body: "UATX's debating society, in the tradition of the Oxford Union. Weekly sittings, faculty-led crash courses, open forums and guest debates.",
+    motto: "Truth through debate.",
+    body: "UATX's student-run society for long-form, adversarial debate, in the tradition of the Oxford Union. You find out what's true by putting it in a room with someone who thinks it's wrong. That is a lot harder to do in a podcast clip or a comment section.",
+    docket: [
+      ["The weekly sitting", "The gavel opens the meeting, then a short challenge debate, a skills workshop, and a team debate on a motion posted a week in advance."],
+      ["Crash courses", "Day-long intensives with UATX faculty on rhetoric and style, building substantive arguments, and rebuttal and cross-examination."],
+      ["Open forums and guest debates", "Public nights on hard questions, plus headline speakers from outside the university."],
+      ["The institution", "A charter, elections, member matriculation and a term debate competition, so the Union outlasts any one class."],
+    ],
     guests: "Guests have included Niall Ferguson, Jonathan Pageau, Phil Magness and Clara Mattei.",
     links: [["austinunion.org", "https://www.austinunion.org"], ["YouTube", "https://www.youtube.com/@AustinUnionSociety"]],
   },
@@ -82,6 +89,16 @@ export const ITEMS = {
     replay: "/demos/polytopia/replay.html",
   },
 };
+
+// Past Austin Union motions, rotated on the chamber's banner and put to visitors. Ids match the
+// union_motions rows in supabase/migrations; add a migration when adding one here.
+export const UNION_MOTIONS = [
+  { id: "christian-nation", title: "Is America a Christian Nation?" },
+  { id: "urbanization", title: "Does Urbanization Promote Human Flourishing?" },
+  { id: "still-a-republic", title: "Is America Still a Republic?" },
+  { id: "enhancement", title: "Are Human Beings Meant to Enhance Themselves?" },
+  { id: "political-violence", title: "Is Political Violence Ever Justified?" },
+];
 
 // The Index overlay: plain facts, newest first.
 export const INDEX = [

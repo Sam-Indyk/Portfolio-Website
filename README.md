@@ -1,6 +1,6 @@
 # samuelindyk.com
 
-One continuous 3D scene. Scrolling descends from low Earth orbit, through the atmosphere, onto a plaza at dusk, and into the tunnels below. Work is shown as objects in the scene: hover for a label, click to fly in and open details. The design spec is in [docs/DESIGN.md](docs/DESIGN.md).
+One continuous 3D scene. Scrolling dives from low Earth orbit toward Austin, through a sunset cloud sea, over the real terrain onto the Austin Union's plaza, and down through the strata to a micro-TBM boring 100 m below. Work is shown as objects in the scene: hover for a label, click to fly in and open details. The design spec is in [docs/DESIGN.md](docs/DESIGN.md).
 
 Built with Vite, three.js, GSAP and Lenis.
 
@@ -18,15 +18,20 @@ Debug hooks: `?t=0.5` jumps the scroll rail, and `?open=union` opens a panel (`?
 
 | Path | What it is |
 |---|---|
-| `src/main.js` | Renderer, post-processing, stage switching, picking, reticle, panel, Index |
-| `src/rail.js` | Scroll progress → camera pose, veils between stages, zone label |
-| `src/world/space.js` | Earth shader, stars, real galaxies, ISCR array, telescope, Crew Dragon |
-| `src/world/surface.js` | HDR dusk sky, Austin Union chamber, White House, rotunda, trees |
-| `src/world/underground.js` | Loop-scale tunnel (TBC), reception shaft, DN600 from CadQuery, Polytopia fossil |
+| `src/main.js` | Renderer, loading and the scroll lock, band switching, veils, picking, reticle, panel, Index |
+| `src/rail.js` | Scroll progress → camera position and pitch, the cut from orbit to the local sky, zone label |
+| `src/world/space.js` | Earth shader (Texas blended in for the dive), stars, real galaxies, ISCR array, telescope, Crew Dragon |
+| `src/world/sky.js` | Camera-centred sunset sky, the haze everything fades into, the cloud sea |
+| `src/world/terrain.js` | Real Austin elevation and aerial imagery out to the horizon, lawn near the plaza |
+| `src/world/polytopia.js` | Polytopia-Zero island above the clouds, replaying a real game move by move |
+| `src/world/surface.js` | Austin Union chamber (banner and lecterns for the vote), White House, rotunda, trees |
+| `src/world/underground.js` | Strata, the Loop tunnel with traffic (TBC), DN600 from CadQuery boring across with the scroll |
+| `src/union.js`, `src/votes.js` | The Union's motions and votes; tallies in Supabase |
 | `src/eigen.js` | Eigen-decomposition panel for any sky galaxy |
-| `src/content.js` | All copy |
+| `src/content.js` | All copy, including the Union's motions |
+| `supabase/migrations/` | The vote tables and functions |
 | `public/demos/` | Deblurring app, DN600 assembly viewer, Polytopia-Zero replays, legacy EigenGalaxy explorer |
-| `tools/` | Asset builders (galaxy atlas, DN600 binary, Earth textures, Poly Haven fetch) |
+| `tools/` | Asset builders (galaxy atlas, DN600 binary, Earth textures, Poly Haven fetch, Austin terrain, Polytopia game) |
 
 ## Regenerating assets
 
@@ -35,10 +40,20 @@ python tools/build_assets.py tbm public/demos/tbm-viewer/data/I.json
 python tools/build_assets.py galaxies ../EigenGalactic        # EigenGalactic venv
 python tools/earth_textures.py <folder of NASA / Solar System Scope maps>
 python tools/fetch_polyhaven.py
+python tools/austin_terrain.py [cache-dir]                     # NAIP imagery, 3DEP elevation, Texas map
+python tools/polytopia_island.py                               # game record for the island, from the replay
 ```
+
+## Union votes
+
+Tallies live in Supabase. The schema is `supabase/migrations/20261101120000_union_votes.sql`: two tables
+behind row level security and two functions (`union_tallies`, `union_vote`), which are all the public
+key can reach. With the Supabase GitHub integration set to deploy to production, it is applied when this
+merges to `main`; it is also safe to paste into the SQL editor by hand. To add a motion, add it to
+`UNION_MOTIONS` in `src/content.js` and add its row in a new migration.
 
 Polytopia replays come from `polytopia-zero/scripts/record_replay.py --p0 net --net <best.pt> --p1 osla`.
 
 ## Credits
 
-Earth: NASA Blue Marble. Night lights, clouds, normal and specular maps: Solar System Scope (CC BY 4.0). Galaxies: Galaxy Zoo 2 / SDSS. Sky, ground, plaster, stone, concrete, asphalt, rock and wood: Poly Haven (CC0).
+Earth and Texas: NASA Blue Marble. Night lights, clouds, normal and specular maps: Solar System Scope (CC BY 4.0). Galaxies: Galaxy Zoo 2 / SDSS. Austin imagery: USDA NAIP via USGS; elevation: USGS 3DEP (public domain). Sky, ground, plaster, stone, concrete, asphalt, rock and wood: Poly Haven (CC0).
