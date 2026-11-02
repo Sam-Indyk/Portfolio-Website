@@ -1,6 +1,6 @@
 # samuelindyk.com
 
-One continuous 3D scene. Scrolling dives from low Earth orbit toward Austin, through a sunset cloud sea, over the real terrain onto the Austin Union's plaza, and down through the strata to a micro-TBM boring 100 m below. Work is shown as objects in the scene: hover for a label, click to fly in and open details. The design spec is in [docs/DESIGN.md](docs/DESIGN.md).
+One continuous 3D scene. Scrolling dives from low Earth orbit toward Austin, through a sunset cloud sea, over the real terrain onto the Austin Union's plaza, follows a car down into the Loop, and drops to a clearing where a micro-TBM breaks through. Work is shown as objects in the scene: hover for a label, click to fly in and open details. The design spec is in [docs/DESIGN.md](docs/DESIGN.md).
 
 Built with Vite, three.js, GSAP and Lenis.
 
@@ -19,13 +19,14 @@ Debug hooks: `?t=0.5` jumps the scroll rail, and `?open=union` opens a panel (`?
 | Path | What it is |
 |---|---|
 | `src/main.js` | Renderer, loading and the scroll lock, band switching, veils, picking, reticle, panel, Index |
-| `src/rail.js` | Scroll progress → camera position and pitch, the cut from orbit to the local sky, zone label |
+| `src/rail.js` | Scroll progress → camera position and pitch, the cut from orbit to the local sky, the chase down the Loop, zone label |
+| `src/world/loop.js` | The Loop route (portal ramp, bored curve, straight tunnel) shared by the camera and the tunnel |
 | `src/world/space.js` | Earth shader (Texas blended in for the dive), stars, real galaxies, ISCR array, telescope, Crew Dragon |
 | `src/world/sky.js` | Camera-centred sunset sky, the haze everything fades into, the cloud sea |
 | `src/world/terrain.js` | Real Austin elevation and aerial imagery out to the horizon, lawn near the plaza |
 | `src/world/polytopia.js` | Polytopia-Zero island above the clouds, replaying a real game move by move |
 | `src/world/surface.js` | Austin Union chamber (banner and lecterns for the vote), White House, rotunda, trees |
-| `src/world/underground.js` | Strata, the Loop tunnel with traffic (TBC), DN600 from CadQuery boring across with the scroll |
+| `src/world/underground.js` | Strata, the Loop with traffic (TBC), the clearing with the control station's GUI, DN600 from CadQuery breaking through |
 | `src/union.js`, `src/votes.js` | The Union's motions and votes; tallies in Supabase |
 | `src/eigen.js` | Eigen-decomposition panel for any sky galaxy |
 | `src/content.js` | All copy, including the Union's motions |

@@ -18,14 +18,11 @@ body { overscroll-behavior: none; }
 a { color: inherit; }
 
 #gl { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: pan-y; }
-#scroll-space { height: 1000vh; }
+#scroll-space { height: 900vh; }   /* 8 screens of travel: rail.js places its keys in screens */
 /* Re-entry haze that covers the jump from the globe to the sky over Austin. */
 #veil { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
   background: radial-gradient(ellipse 120% 90% at 50% 60%, #dfe9f6 0%, #b9cde6 55%, #9db6d6 100%); }
 /* Inside the cloud deck: sunlit at the top of the screen, greyer below. */
-/* Through the ground on the way down. */
-#soil { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
-  background: radial-gradient(ellipse 90% 70% at 50% 40%, #3a2618 0%, #23170e 60%, #130c07 100%); }
 #mist { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0;
   background: linear-gradient(180deg, #f6ece2 0%, #e4dcd6 55%, #c9c6cb 100%); }
 
@@ -79,6 +76,11 @@ kbd { font: 10px var(--mono); border: 1px solid var(--hair); border-radius: 3px;
 .p-expand { position: absolute; right: 8px; top: 30px; padding: 5px 9px; background: rgba(6,7,9,.7); border: 1px solid var(--hair); color: var(--ink); cursor: pointer; }
 
 /* ---------- always-on mini tags ---------- */
+/* The Union's tag invites a vote: maroon and gold, with a slow pulse. */
+.mini.cta { color: #f6ecd9; background: rgba(74, 11, 22, 0.82); border: 1px solid rgba(217, 178, 106, 0.6); padding: 4px 9px; font-size: 10.5px; }
+.mini.cta b { color: #d9b26a; font-weight: 500; margin-left: 6px; }
+.mini.cta::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #d9b26a; margin-right: 8px; vertical-align: 1px; animation: cta-pulse 1.8s ease-in-out infinite; }
+@keyframes cta-pulse { 50% { opacity: 0.25; transform: scale(0.7); } }
 #tags { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
 .mini { position: absolute; left: 0; top: 0; font-size: 9.5px; letter-spacing: 0.1em; color: rgba(242, 239, 232, 0.78);
   padding: 2px 6px; background: rgba(6, 7, 9, 0.35); white-space: nowrap; transition: opacity 0.35s; opacity: 0; }

@@ -4,10 +4,11 @@ import Lenis from "lenis";
 import { gsap } from "gsap";
 import "./style.css";
 import { ITEMS, INDEX } from "./content.js";
-import { voteHTML, mountVote, unmountVote } from "./union.js";
+import { voteHTML, mountVote, unmountVote, motionIndex } from "./union.js";
+import { UNION_MOTIONS } from "./content.js";
 import { setLoadingManager } from "./pbr.js";
 import { buildSpace, EARTH } from "./world/space.js";
-import { Rail, OUTRO_FROM, CUT_T } from "./rail.js";
+import { Rail, OUTRO_FROM, CUT_T, SURFACE_T } from "./rail.js";
 
 const BASE = import.meta.env.BASE_URL;
 const isMobile = matchMedia("(pointer: coarse)").matches || innerWidth < 700;
@@ -112,7 +113,8 @@ async function loadRest() {
   terrain = buildTerrain({ textures, sky, isMobile, base: BASE });
   space.setTexas(textures.texas, textures.austinMeta.texas);
   island = await buildPolytopia({ base: BASE, fetchAs });
-  surface = buildSurface({ textures, renderer, isMobile, base: BASE });   // phones pan along the full row
+  // Phones pan along the full row. The sign by the walkway carries this visit's motion.
+  surface = buildSurface({ textures, renderer, isMobile, base: BASE, motion: UNION_MOTIONS[motionIndex()].title });
   applyEnv(surface.group, surface.envMap, 1);
   under = await buildUnderground({ renderer, isMobile, base: BASE, fetchAs });
   applyEnv(under.group, under.envMap, 0.15);   // underground, image light is only a faint fill for metal
@@ -135,14 +137,15 @@ async function loadRest() {
 function inPlay(p) {
   if (p.band !== band) return false;
   if (band === "space") return !p.sphere || galaxyTagFade > 0.5;
+  if (following) return false;   // riding down into the Loop
   const y = camera.position.y;
   if (p.id === "polytopia") return y > 2000;
   return p.under ? y < -2 : y > -1 && y < 160;
 }
 
 // ---------- by altitude: the orbit band until the cut, then the local world ----------
-let galaxyTagFade = 1, band = "space", shadowsDrawn = false;
-const veilEl = $("veil"), mistEl = $("mist"), soilEl = $("soil");
+let galaxyTagFade = 1, band = "space", shadowsDrawn = false, following = false;
+const veilEl = $("veil"), mistEl = $("mist");
 function setClip(near, far) {
   if (Math.abs(camera.near - near) / near < 0.05 && Math.abs(camera.far - far) / far < 0.05) return;
   camera.near = near; camera.far = far;
@@ -150,17 +153,15 @@ function setClip(near, far) {
 }
 function atmosphere(pose, t) {
   // Re-entry: the dive into the globe thickens into haze, which hides the cut to the sky over Austin.
-  const veil = sstep(0.164, CUT_T, t) * (1 - sstep(CUT_T + 0.002, CUT_T + 0.03, t));
+  const veil = sstep(CUT_T - 0.018, CUT_T, t) * (1 - sstep(CUT_T + 0.002, CUT_T + 0.034, t));
   veilEl.style.opacity = veil.toFixed(3);
   band = pose.local && local ? "local" : "space";
   space.group.visible = band === "space";
   if (local) local.visible = band === "local";
   mistEl.style.opacity = band === "local" ? sky.mistAt(pose.pos).toFixed(3) : "0";
-  // Going underground: a moment of soil as the camera passes through the ground.
-  soilEl.style.opacity = band === "local" ? sstep(1.6, 0.2, Math.abs(pose.pos.y + 0.6)).toFixed(3) : "0";
   if (band === "space") {
-    space.setHaze(sstep(0.148, CUT_T, t) * 0.9);
-    galaxyTagFade = 1 - sstep(0.1, 0.13, t);
+    space.setHaze(sstep(CUT_T - 0.036, CUT_T, t) * 0.9);
+    galaxyTagFade = 1 - sstep(0.11, 0.145, t);
     space.sun.intensity = 3.4;
     renderer.toneMappingExposure = 1.0;
     if (scene.fog) { scene.fog.near = 1e6; scene.fog.far = 2e6; }
@@ -199,10 +200,12 @@ const camPos = new THREE.Vector3(), camTarget = new THREE.Vector3();
 const heroEl = $("hero"), outroEl = $("outro"), zoneEl = $("zone");
 function applyCamera(t) {
   const pose = rail.pose(t);
+  following = t > rail.follow[0] && t < rail.follow[1];
   camPos.copy(pose.pos); camTarget.copy(pose.target);
-  // A whisper of parallax from the pointer (translation only, no rotation).
+  // A whisper of parallax from the pointer (translation only, no rotation); none on the ride down
+  // the Loop, where the tunnel wall is close.
   mouse.sx += (mouse.x - mouse.sx) * 0.05; mouse.sy += (mouse.y - mouse.sy) * 0.05;
-  const k = Math.min(Math.abs(pose.pos.z), 120) * 0.012;
+  const k = following ? 0 : Math.min(Math.abs(pose.pos.z), 120) * 0.012;
   camPos.x += mouse.sx * k; camTarget.x += mouse.sx * k;
   camPos.y -= mouse.sy * k * 0.5; camTarget.y -= mouse.sy * k * 0.5;
   if (focus.mix > 0) { camPos.lerp(focus.pos, focus.mix); camTarget.lerp(focus.target, focus.mix); }
@@ -298,10 +301,12 @@ function addPickables(list) {
     if (p.object) p.box = new THREE.Box3().setFromObject(p.object);
     if (p.tagAnchor) p.tagBox = new THREE.Box3().setFromObject(p.tagAnchor);
     pickables.push(p);
-    if (p.sphere) continue;
+    if (p.sphere || p.notag) continue;
     const el = document.createElement("span");
     el.className = "mini mono";
     el.textContent = ITEMS[p.id].label;
+    // A standing invitation where there is something to do (the Union's vote).
+    if (ITEMS[p.id].cta) { el.classList.add("cta"); el.insertAdjacentHTML("beforeend", ` <b>${ITEMS[p.id].cta}</b>`); }
     tagLayer.appendChild(el);
     tags.push({ p, el, w: 0 });
   }
@@ -534,8 +539,8 @@ renderer.setAnimationLoop((t) => {
   else {
     sky.update(t); island.update(t, dt); surface.update(t);
     // The DN600 creeps across as the descent goes deep, slowing as it reaches the centre.
-    const run = clamp01((pr - 0.6) / (rail.timeOf("dn600") - 0.6));
-    under.update(t, camera, 1 - (1 - run) * (1 - run));
+    const run = clamp01((pr - rail.timeOf("tunnel")) / (rail.timeOf("dn600") - rail.timeOf("tunnel")));
+    under.update(t, camera, 1 - (1 - run) * (1 - run), { s: rail.loopS(pr), ride: pr < rail.follow[1] + 0.004 });
     if (camera.position.y < 0) for (const p of pickables) if (p.dynamic) p.box.setFromObject(p.object);
   }
   if (pointerDirty && !focus.active && !indexOpen && pr <= OUTRO_FROM) { setHover(pick(pointerX, pointerY)); pointerDirty = false; }
@@ -553,7 +558,8 @@ window.__lenis = lenis;
 // Debug/screenshot hooks: ?t=0.5 jumps the rail, ?open=<id> opens a panel (?g=3 picks a galaxy), ?demo=<url>.
 const qs = new URLSearchParams(location.search);
 await rest;
-warm = [0.19, 0.225, 0.29, 0.38, 0.47, 0.6, 0.76, 0.86];
+warm = [CUT_T + 0.012, rail.timeOf("polytopia"), 0.36, 0.45, SURFACE_T, (rail.follow[0] + rail.follow[1]) / 2, rail.follow[1] - 0.006,
+  rail.timeOf("tunnel"), rail.timeOf("controls"), rail.timeOf("dn600")];
 await ready;
 scrollLocked = false;
 if (!focus.active && !indexOpen) lenis.start();
