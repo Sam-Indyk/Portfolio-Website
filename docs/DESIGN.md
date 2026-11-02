@@ -24,8 +24,8 @@ Agreed with Sam on 2026-10-29. This replaces the v1 prototype ("stacked slides")
   operator GUI (its own panel). One screen shorter than pass 2.
 - **Union click-to-vote:** a maroon-and-gold sign by the walkway shows the visit's motion and "Click to
   vote"; the Union's tag carries the same call.
-- **ISCR:** bigger and forward; turns toward the cursor; compute pulses across the cells and edges;
-  laser downlinks to Austin and a second station.
+- **ISCR:** bigger and forward; turns toward the cursor; compute pulses across the cells and edges.
+  (Laser downlinks to Earth were tried and removed at Sam's request.)
 - **Loading:** the opening shows once orbit is in; scrolling stays locked until everything (including
   material textures) has loaded and been drawn once offscreen. Panel, Index and demos scroll with the
   wheel (`data-lenis-prevent`).

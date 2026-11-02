@@ -271,28 +271,6 @@ export function buildSpace({ textures, galaxyMeta, isMobile, portrait = false })
   pivot.updateMatrixWorld(true);
   pickables.push({ id: "iscr", object: pivot, tagAnchor: tagAt, focus: { pos: pivot.position.clone().add(new THREE.Vector3(13, 8, 56)), target: pivot.position.clone() } });
 
-  // Laser downlinks from the bus to ground stations (one at Austin), packets running down them.
-  const beamMat = new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uPulse: pulseTime },
-    vertexShader: `varying float vAlong; void main() { vAlong = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-    fragmentShader: `uniform float uPulse; varying float vAlong;
-      void main() {
-        float packets = pow(fract(vAlong * 14.0 + uPulse * 0.9), 10.0);
-        float a = (0.22 + packets * 0.9) * smoothstep(0.0, 0.08, vAlong) * smoothstep(1.0, 0.65, vAlong);
-        gl_FragColor = vec4(vec3(0.42, 0.85, 1.0) * a, 1.0);
-      }`,
-  });
-  const stations = [AUSTIN_DIR.clone(), AUSTIN_DIR.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), -0.16).applyAxisAngle(new THREE.Vector3(1, 0, 0), 0.05)];
-  const beams = stations.map((dir) => {
-    // A cylinder from y = 0 (the bus) to y = 1 (the ground), tapering wider with distance.
-    const g = new THREE.CylinderGeometry(3.2, 0.12, 1, 8, 1, true).translate(0, 0.5, 0);
-    const beam = new THREE.Mesh(g, beamMat);
-    beam.frustumCulled = false;
-    beam.renderOrder = -7;
-    group.add(beam);
-    return { beam, ground: EARTH.center.clone().addScaledVector(dir, EARTH.r) };
-  });
-  const busWorld = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion();
 
   // ---------- space telescope ----------
   const tele = new THREE.Group();
@@ -379,14 +357,6 @@ export function buildSpace({ textures, galaxyMeta, isMobile, portrait = false })
       pivot.rotation.y += (px * 0.42 - pivot.rotation.y) * 0.06;
       pivot.rotation.x += (py * 0.3 - pivot.rotation.x) * 0.06;
       pivot.position.y = SPACE_Y + L.iscr[1] + Math.sin(t * 0.0004) * 0.4;
-      pivot.updateMatrixWorld();
-      bus.getWorldPosition(busWorld);
-      for (const b of beams) {
-        const d = b.ground.clone().sub(busWorld);
-        b.beam.position.copy(busWorld);
-        b.beam.quaternion.copy(q.setFromUnitVectors(up, d.clone().normalize()));
-        b.beam.scale.set(1, d.length(), 1);
-      }
       tele.rotation.z = -1.0 + Math.sin(t * 0.00015) * 0.05;
       dragon.rotation.y = 0.4 + t * 0.00003;
     },
