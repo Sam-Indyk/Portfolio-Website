@@ -5,6 +5,7 @@
 import * as THREE from "three";
 import { pbr } from "../pbr.js";
 import { SKY_GLSL } from "./sky.js";
+import { RAMP } from "./loop.js";
 
 const FLAT_R0 = 420, FLAT_R1 = 1200;   // the plaza's ground is level out to R0, real terrain from R1
 const EXAGGERATION = 1.25;             // a little extra relief reads better from altitude at low sun
@@ -101,6 +102,8 @@ export function buildTerrain({ textures, sky, isMobile, base = "/" }) {
         }`)
       .replace("#include <map_fragment>", `
         vec2 xz = vTW.xz;
+        // The Loop's portal ramp cuts down through the lawn here (underground.js builds its walls).
+        if (abs(xz.x - ${RAMP.x.toFixed(1)}) < ${RAMP.half.toFixed(2)} && xz.y > ${RAMP.portal.toFixed(1)} && xz.y < ${RAMP.top.toFixed(1)}) discard;
         // Imagery: u runs east (z), v runs north (x).
         vec2 lonlat = vec2(origin.y + xz.y / origin.w, origin.x + xz.x / origin.z);
         vec3 c = texture2D(texasMap, vec2((lonlat.x - texLon.x) / (texLon.y - texLon.x), (lonlat.y - texLat.x) / (texLat.y - texLat.x))).rgb;

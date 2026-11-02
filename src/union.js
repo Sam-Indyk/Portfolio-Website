@@ -8,9 +8,15 @@ let index = null, counts = null, failed = false, rejected = false, pending = nul
 
 export const voteHTML = () => `<div class="vote" id="vote" aria-live="polite"></div>`;
 
+// This visit's motion (the sign on the plaza and the panel open on the same one).
+export function motionIndex() {
+  if (index === null) index = rotation(N);
+  return index;
+}
+
 export function mountVote(el, ch) {
   root = el; chamber = ch;
-  if (index === null) index = rotation(N);
+  motionIndex();
   root.addEventListener("click", onClick);
   render();
   tallies().then((t) => { counts = t; failed = false; render(); }).catch(() => { failed = true; render(); });

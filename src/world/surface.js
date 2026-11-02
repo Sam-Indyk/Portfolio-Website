@@ -6,8 +6,10 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { flagMap, windowMap, leafClusterMap, glowMap } from "../textures.js";
 import { pbr, triplanar } from "../pbr.js";
 import { LAWN } from "./terrain.js";
+import { CUT_Z } from "./loop.js";
 
-export const CUT_Z = 30;         // the cross-section cut: nothing stands in front of it, so from below the plaza sits behind its edge
+// The cross-section cut (loop.js): nothing stands in front of it, so from below the plaza sits behind its edge.
+export { CUT_Z };
 export const SLAB_W = 440;       // width of the strata face
 
 // Find the sun in an equirectangular HDR (its brightest region) as a direction.
@@ -165,7 +167,7 @@ function wavingFlag(time) {
   return flag;
 }
 
-export function buildSurface({ textures, renderer, isMobile, portrait = false, base = "/" }) {
+export function buildSurface({ textures, renderer, isMobile, portrait = false, base = "/", motion = "" }) {
   const group = new THREE.Group();
   const pickables = [];
   const time = { value: 0 };
@@ -440,8 +442,61 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   au.scale.setScalar(LAY.au[2]);
   group.add(au);
   const ay = (y) => y * LAY.au[2];
+  // The hover tag (with its call to vote) sits at the left end of the colonnade, in view from the landing.
+  const auTag = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1));
+  auTag.visible = false;
+  auTag.position.set(-AW / 2 + 0.5, 1 + AH + 0.2, AD / 2);
+  au.add(auTag);
+  au.updateMatrixWorld(true);
   // Opening the Union flies inside the hall to face the banner and both lecterns.
-  pickables.push({ id: "union", object: au, focus: { pos: new THREE.Vector3(0, ay(4.8), LAY.au[1] + ay(7.6)), target: new THREE.Vector3(0, ay(4.2), LAY.au[1] - ay(8)) }, shift: 0.13 });
+  pickables.push({ id: "union", object: au, tagAnchor: auTag, focus: { pos: new THREE.Vector3(0, ay(4.8), LAY.au[1] + ay(7.6)), target: new THREE.Vector3(0, ay(4.2), LAY.au[1] - ay(8)) }, shift: 0.13 });
+
+  // ---------- a sign by the walkway inviting a vote on tonight's motion ----------
+  const signArt = (() => {
+    const W = 512, H = 672, c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const g = c.getContext("2d");
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    const serif = '"Instrument Serif", Georgia, serif', mono = '"JetBrains Mono", ui-monospace, monospace';
+    const draw = () => {
+      const grd = g.createLinearGradient(0, 0, 0, H);
+      grd.addColorStop(0, "#5a0f1d"); grd.addColorStop(1, "#3c0812");
+      g.fillStyle = grd; g.fillRect(0, 0, W, H);
+      g.strokeStyle = "#c9a14a"; g.lineWidth = 4; g.strokeRect(16, 16, W - 32, H - 32);
+      g.lineWidth = 1.5; g.strokeRect(28, 28, W - 56, H - 56);
+      g.textAlign = "center";
+      g.fillStyle = "#c9a14a"; g.font = `500 22px ${mono}`; g.fillText("TONIGHT THE HOUSE DEBATES", W / 2, 96);
+      g.fillStyle = "#f3e9da"; g.font = `62px ${serif}`;
+      const words = motion.split(" "), lines = [];
+      let line = "";
+      for (const w of words) { const t2 = line ? `${line} ${w}` : w; if (g.measureText(t2).width > W - 110 && line) { lines.push(line); line = w; } else line = t2; }
+      lines.push(line);
+      lines.forEach((l, i) => g.fillText(l, W / 2, 250 - (lines.length - 1) * 34 + i * 68));
+      g.fillStyle = "#c9a14a"; g.fillRect(W / 2 - 60, 432, 120, 2);
+      g.fillStyle = "#d9b25a"; g.font = `600 40px ${mono}`; g.fillText("CLICK TO VOTE", W / 2, 520);
+      g.fillStyle = "rgba(243,233,218,0.7)"; g.font = `500 22px ${mono}`; g.fillText("AYE  OR  NO", W / 2, 572);
+      tex.needsUpdate = true;
+    };
+    draw();
+    document.fonts?.ready.then(draw);
+    return tex;
+  })();
+  const sign = new THREE.Group();
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 3.94), new THREE.MeshStandardMaterial({ map: signArt, roughness: 0.8, emissive: 0xffffff, emissiveMap: signArt, emissiveIntensity: 0.22 }));
+  board.position.set(0, 2.9, 0.05);
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0xc9a14a, metalness: 0.85, roughness: 0.35 });
+  sign.add(board, new THREE.Mesh(mergeGeometries([
+    box(3.16, 0.1, 0.08, 0, 4.9, 0), box(3.16, 0.1, 0.08, 0, 0.9, 0), box(0.08, 4.1, 0.08, -1.55, 2.9, 0), box(0.08, 4.1, 0.08, 1.55, 2.9, 0),
+    box(0.08, 0.9, 0.08, -1.55, 0.45, 0), box(0.08, 0.9, 0.08, 1.55, 0.45, 0),
+  ]), frameMat));
+  sign.position.set(10.5, 0, 14);
+  sign.rotation.y = -0.42;   // turned toward where the descent lands
+  shadowAll(sign);
+  group.add(sign);
+  glow(group, 10.3, 5.3, 14.6, 2.4);
+  pickables.push({ id: "union", notag: true, object: sign, focus: { pos: new THREE.Vector3(0, ay(4.8), LAY.au[1] + ay(7.6)), target: new THREE.Vector3(0, ay(4.2), LAY.au[1] - ay(8)) }, shift: 0.13 });
 
   // ---------- trees ----------
   // Crowns built from alpha-cut leaf cards; card normals point away from the crown centre so the
