@@ -19,21 +19,22 @@ function dive(from, k) {
   const d = AUSTIN.clone().sub(pos);
   return { pos, pitch: THREE.MathUtils.radToDeg(Math.atan2(d.y, -d.z)) };
 }
-// A key that sits on the chase camera at arc fraction sr of the Loop route.
-function chaseKey(t, sr, extra) {
-  const c = chase(sr);
-  return { t, pos: c.pos, pitch: c.pitch, yaw: c.yaw, ...extra };
+// A key that sits on the tracking camera at arc fraction sr of the Loop route.
+function chaseKey(t, sr, back) {
+  const c = chase(sr, back);
+  return { t, pos: c.pos, pitch: c.pitch, yaw: c.yaw };
 }
 
 export const CUT_T = s(1.62);       // the jump from the orbit band to the local sky
 export const SURFACE_T = s(4.23);   // standing in front of the Union
 export const OUTRO_FROM = s(7.24);
 const DEEP = -34.2;                 // the DN600's level (BORE.y, underground.js)
-// Inside the clearing, looking back at the cutterhead as it comes through the wall toward the camera.
-const CLOSE = V(2.5, DEEP + 0.55, CUT - 0.55), CLOSE_YAW = -108;
+// Side-on to the DN600 as it breaks into the clearing: its body (cutterhead at x = -1, tail ~1.3 m
+// behind) centred in frame.
+const CLOSE = V(-1.65, DEEP + 0.35, CUT + 4.6);
 
 const LANDSCAPE = {
-  follow: [s(4.5), s(5.15)],
+  follow: [s(4.5), s(5.15)], back: 22,
   keys: [
     { t: 0, pos: V(0, 600, 95), pitch: -3 },
     { t: s(0.72), pos: V(0, 535, 75), pitch: -4, at: ["iscr", "telescope", "capsule", "galaxy"] },
@@ -49,23 +50,23 @@ const LANDSCAPE = {
     { t: s(3.33), pos: V(0, 520, 1650), pitch: -19 },
     { t: s(3.78), pos: V(0, 70, 290), pitch: -8 },
     { t: SURFACE_T, pos: V(0, 4.2, 36), pitch: 2.5, at: ["union", "whitehouse", "rotunda"] },
-    // Into the ground: pull back over the lawn and drop in behind a car at the top of the Loop's
-    // ramp; tail it down and round into the tunnel; swing out through the tunnel's open side.
-    { t: s(4.38), pos: V(16, 10, 84), pitch: -7 },
-    chaseKey(s(4.5), S_START),
-    chaseKey(s(5.15), S_END),
-    { t: s(5.45), pos: V(-5, -13.4, CUT + 24), pitch: -1, at: ["tunnel"] },
-    // Down to the clearing, where the DN600 breaks through and the control station stands.
-    { t: s(5.85), pos: V(3, -24, CUT + 22), pitch: -6 },
-    { t: s(6.3), pos: V(2.5, -31, CUT + 17), pitch: -6, at: ["controls"] },
-    { t: s(6.8), pos: CLOSE, pitch: -9, yaw: CLOSE_YAW, at: ["dn600"] },
-    { t: 1, pos: CLOSE.clone().add(V(1.1, 0.5, 0.3)), pitch: -3, yaw: CLOSE_YAW - 2 },   // drifts back under the closing words
+    // Into the ground, never turning from the cut face: slide east over the lawn to the Loop's ramp,
+    // track a car down it side-on as the lawn falls away above, and let it drive on into the tunnel.
+    { t: s(4.36), pos: V(48, 5.5, CUT + 21), pitch: -6 },
+    chaseKey(s(4.5), S_START, 22),
+    chaseKey(s(5.15), S_END, 22),
+    { t: s(5.45), pos: V(-4, -13.4, CUT + 22), pitch: -1, at: ["tunnel"] },
+    // Straight down to the clearing, where the control station stands, then in on the DN600.
+    { t: s(5.85), pos: V(2, -24, CUT + 21), pitch: -5 },
+    { t: s(6.3), pos: V(2, -31, CUT + 17), pitch: -5, at: ["controls"] },
+    { t: s(6.8), pos: CLOSE, pitch: -3, at: ["dn600"] },
+    { t: 1, pos: CLOSE.clone().add(V(0, 0.6, 1.4)), pitch: 3 },   // eases back so it sits under the closing words
   ],
 };
 // Phones: the orbit band is laid out taller (see space.js); on the surface the camera pans along
 // the row, one building at a time, so nothing is shrunk to fit a narrow screen.
 const PORTRAIT = {
-  follow: [s(4.62), s(5.24)],
+  follow: [s(4.62), s(5.24)], back: 30,
   keys: [
     { t: 0, pos: V(0, 600, 120), pitch: -3 },
     { t: s(0.81), pos: V(0, 532, 120), pitch: -4, at: ["iscr", "telescope", "capsule", "galaxy"] },
@@ -80,14 +81,13 @@ const PORTRAIT = {
     { t: s(3.69), pos: V(-60, 18, 110), pitch: -2, yaw: -1, at: ["whitehouse"] },
     { t: SURFACE_T, pos: V(0, 6, 76), pitch: 4, at: ["union"] },
     { t: s(4.4), pos: V(35, 8, 50), pitch: -1, yaw: 6, at: ["rotunda"] },
-    chaseKey(s(4.62), S_START),
-    chaseKey(s(5.24), S_END),
-    { t: s(5.5), pos: V(-5, -13.4, CUT + 32), pitch: -1, at: ["tunnel"] },
-    { t: s(5.9), pos: V(3, -24, CUT + 28), pitch: -6 },
-    { t: s(6.3), pos: V(4, -31, CUT + 22), pitch: -6, at: ["controls"] },
-    // Further back for the narrow screen, so aimed a little more along the wall to keep it centred.
-    { t: s(6.8), pos: CLOSE.clone().add(V(1.4, 0.2, 0.3)), pitch: -9, yaw: CLOSE_YAW + 9, at: ["dn600"] },
-    { t: 1, pos: CLOSE.clone().add(V(2.6, 0.7, 0.5)), pitch: -3, yaw: CLOSE_YAW + 8 },
+    chaseKey(s(4.62), S_START, 30),
+    chaseKey(s(5.24), S_END, 30),
+    { t: s(5.5), pos: V(-4, -13.4, CUT + 30), pitch: -1, at: ["tunnel"] },
+    { t: s(5.9), pos: V(4, -24, CUT + 28), pitch: -5 },
+    { t: s(6.3), pos: V(6, -31, CUT + 24), pitch: -5, at: ["controls"] },
+    { t: s(6.8), pos: CLOSE.clone().add(V(0, 0.05, 3.2)), pitch: -3, at: ["dn600"] },
+    { t: 1, pos: CLOSE.clone().add(V(0, 0.75, 5)), pitch: 3 },
   ],
 };
 
@@ -98,6 +98,7 @@ export class Rail {
     const zScale = portrait ? 1 : Math.min(1.5, Math.max(1, 1.5 / aspect));
     const layout = portrait ? PORTRAIT : LANDSCAPE;
     this.follow = layout.follow;
+    this.back = layout.back;
     this.keys = layout.keys.map((k) => ({
       yaw: 0, ...k, pos: k.t <= s(1.08) ? V(k.pos.x, k.pos.y, k.pos.z * zScale) : k.pos.clone(),
     }));
@@ -130,8 +131,9 @@ export class Rail {
   pose(t) {
     const [fa, fb] = this.follow;
     if (t > fa && t < fb) {
-      const c = chase(this.loopS(t));
-      return { pos: c.pos, target: c.target, zone: c.pos.y > 0 ? "Austin, Texas · The Loop" : `The Loop · −${Math.round(-c.pos.y)} m`, local: true };
+      const c = chase(this.loopS(t), this.back), pitch = THREE.MathUtils.degToRad(c.pitch);
+      const target = c.pos.clone().add(V(0, Math.sin(pitch) * 100, -Math.cos(pitch) * 100));
+      return { pos: c.pos, target, zone: c.car.y > -1 ? "Austin, Texas · The Loop" : `The Loop · −${Math.round(-c.car.y)} m`, local: true };
     }
     const st = this.stretches.findLast((x) => t >= x.keys[0].t) || this.stretches[0];
     const keys = st.keys, n = keys.length;

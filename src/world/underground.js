@@ -1,6 +1,6 @@
-// Below the plaza, as a cross-section. The Loop (The Boring Company): a portal ramp east of the plaza
-// that the camera follows a car down, a bored curve under the lawn, and the straight tunnel cut open
-// along the face, with traffic. Below it, a clearing (reception pit) that the UATXcavators DN600
+// Below the plaza, as a cross-section seen side-on throughout. The Loop (The Boring Company): a portal
+// ramp cut down through the lawn east of the plaza, which the camera tracks a car down, and the
+// straight tunnel cut open along the face, with traffic. Below it, a clearing (reception pit) that the UATXcavators DN600
 // breaks into as the scroll drives it across, with the team's control station running the operator
 // GUI. Units are metres; the plaza is y = 0, the cut face is z = CUT_Z.
 import * as THREE from "three";
@@ -9,7 +9,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { glowMap } from "../textures.js";
 import { pbrRepeat } from "../pbr.js";
 import { SLAB_W } from "./surface.js";
-import { CUT_Z, TUNNEL, ROAD_Y, RAMP, ROUTE, LENGTH, S_PORTAL, S_JOIN, S_END } from "./loop.js";
+import { CUT_Z, TUNNEL, ROAD_Y, RAMP, ROUTE, LENGTH, S_END, rampY } from "./loop.js";
 
 export const BORE = { y: -34.2, r: 0.36, x0: -60, end: -1.0 };   // the DN600's cutterhead stops at x = end
 export const CHAMBER = { x0: -2, x1: 14, y0: -35, y1: -28.4, back: 7, front: 1.2 };
@@ -231,12 +231,11 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
   const blink = [];
   const envMap = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
   const m = new THREE.Matrix4(), one = new THREE.Vector3(1, 1, 1), zero = new THREE.Vector3(0, 0, 0), q0 = new THREE.Quaternion();
-  const X = new THREE.Vector3(1, 0, 0), UP = new THREE.Vector3(0, 1, 0);
 
   // ---------- strata: the cut face, in bands that change with depth; open where the clearing is ----------
   const SW = SLAB_W, SH = DEPTH;
   const cliff = pbrRepeat("cliff_side", SW / 9, SH / 9, base);
-  const strata = new THREE.MeshStandardMaterial({ ...cliff, normalScale: new THREE.Vector2(1.4, 1.4), color: 0xffffff, roughness: 1, envMapIntensity: 0.1 });
+  const strata = new THREE.MeshStandardMaterial({ ...cliff, normalScale: new THREE.Vector2(0.9, 0.9), color: 0xffffff, roughness: 1, envMapIntensity: 0.1 });
   strata.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vSW;")
       .replace("#include <project_vertex>", "#include <project_vertex>\nvSW = (modelMatrix * vec4(transformed, 1.0)).xyz;");
@@ -248,7 +247,7 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
         vec3 a = texture2D(map, p * 0.13).rgb;
         vec3 b = texture2D(map, mat2(0.8, -0.6, 0.6, 0.8) * p * 0.047 + vec2(0.37, 0.61)).rgb;
         vec3 c = texture2D(map, p * 0.017 + vec2(0.71, 0.13)).rgb;
-        float rock = dot(a * 0.45 + b * 0.35 + c * 0.2, vec3(0.3, 0.55, 0.15));
+        float rock = mix(0.42, dot(a * 0.45 + b * 0.35 + c * 0.2, vec3(0.3, 0.55, 0.15)), 0.7);   // softened: harsh up close
         // Formations by depth, each with its own colour and thin internal bedding; the contacts
         // between them undulate gently along x.
         float y = vSW.y + sin(vSW.x * 0.031) * 1.2 + sin(vSW.x * 0.011 + 1.7) * 2.0;
@@ -389,65 +388,51 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
     group.add(txt, line);
   }
 
-  // ---------- the way in: the portal ramp and the bored curve the camera rides down ----------
-  // Shown only while the camera is on that stretch; from the cross-section it would float in front.
-  const ride = new THREE.Group();
-  group.add(ride);
-  const along = (s0, s1, n, fn) => { for (let i = 0; i <= n; i++) fn(s0 + ((s1 - s0) * i) / n, i); };
-  const side = new THREE.Vector3();
-  const strip2 = (n, s0, s1, edge, mat) => {
-    // A strip along the route between two edges (each: (point, side, s) -> Vector3).
-    const pos = [], uv = [], idx = [];
-    along(s0, s1, n, (sr, i) => {
-      const p = ROUTE.getPointAt(sr);
-      side.crossVectors(ROUTE.getTangentAt(sr), UP).normalize();
-      for (const e of [0, 1]) { const v = edge(e, p, side, sr); pos.push(v.x, v.y, v.z); uv.push(e, (sr * LENGTH) / 4); }
-      if (i) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
-    });
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
-    g.setIndex(idx);
-    g.computeVertexNormals();
-    return new THREE.Mesh(g, mat);
-  };
-  // Road down the ramp and on through the curve (narrower inside the bore).
-  const rampRoad = new THREE.MeshStandardMaterial({ ...pbrRepeat("asphalt_02", 1, 1, base), color: 0x8a8a8e, roughness: 1, side: THREE.DoubleSide });
-  ride.add(strip2(90, 0, S_JOIN, (e, p, sd, sr) => p.clone().addScaledVector(sd, (e ? 1 : -1) * (sr < S_PORTAL ? RAMP.half - 0.1 : 1.25)).add(new THREE.Vector3(0, 0.01, 0)), rampRoad));
-  // Retaining walls either side of the open cut, from the road up to the lawn.
-  for (const sg of [-1, 1]) {
-    ride.add(strip2(40, 0, S_PORTAL + 0.004, (e, p, sd) => { const v = p.clone().addScaledVector(sd, sg * RAMP.half); v.y = e ? 0.25 : p.y; return v; }, relined(12, 1)));
-  }
-  // Portal headwall with the tunnel mouth, facing up the ramp, and a light bar over it.
-  const pp = ROUTE.getPointAt(S_PORTAL);
-  const head = new THREE.Shape();
-  head.moveTo(-RAMP.half, 0); head.lineTo(RAMP.half, 0); head.lineTo(RAMP.half, -pp.y + 0.6); head.lineTo(-RAMP.half, -pp.y + 0.6); head.closePath();
-  const mouth = new THREE.Path();
-  mouth.absarc(0, 1.32, TUNNEL.r + 0.05, 0, Math.PI * 2, true);
-  head.holes.push(mouth);
-  const portal = new THREE.Mesh(new THREE.ShapeGeometry(head, 32), new THREE.MeshStandardMaterial({ color: 0xbfc3c8, roughness: 0.85, side: THREE.DoubleSide }));
-  const pt = ROUTE.getTangentAt(S_PORTAL);
-  portal.rotation.y = Math.atan2(pt.x, pt.z);   // square to the road
-  portal.position.copy(pp);
-  ride.add(portal);
-  const portalLight = new THREE.Mesh(new THREE.BoxGeometry(RAMP.half * 2 - 0.4, 0.08, 0.08), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xe8f0ff, emissiveIntensity: 2.5 }));
-  portalLight.position.set(pp.x, pp.y + 3.6, pp.z + 0.1);
-  ride.add(portalLight);
-  // The bored curve: a full tube from the portal to the straight tunnel, ringed with colour-changing
-  // LED bands every few metres, as in the Loop.
-  const tubePts = [];
-  along(S_PORTAL, S_JOIN, 40, (sr) => tubePts.push(ROUTE.getPointAt(sr).add(new THREE.Vector3(0, 1.32, 0))));
-  const curve = new THREE.CatmullRomCurve3(tubePts);
-  ride.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 140, TUNNEL.r, 28, false), relined(curve.getLength() / 3, 2)));
-  const NR = Math.floor(curve.getLength() / 3.2);
-  const rings = new THREE.InstancedMesh(new THREE.TorusGeometry(TUNNEL.r - 0.05, 0.035, 6, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), NR);
-  const ringCol = new THREE.Color(), Z = new THREE.Vector3(0, 0, 1), rq = new THREE.Quaternion();
+  // ---------- the way in: the portal ramp, cut open like everything else in the section ----------
+  // Road slab down the ramp: its side profile (road surface over 0.5 m of slab), across the cut's width.
+  const prof = new THREE.Shape();
+  prof.moveTo(RAMP.x1 + 22, 0.05);
+  for (let x = RAMP.x1 + 22; x >= RAMP.x0; x -= 1) prof.lineTo(x, rampY(x) + 0.05);
+  for (let x = RAMP.x0; x <= RAMP.x1 + 22; x += 1) prof.lineTo(x, rampY(x) - 0.5);
+  prof.closePath();
+  const rampRoad = new THREE.Mesh(new THREE.ExtrudeGeometry(prof, { depth: RAMP.z1 - RAMP.z0, bevelEnabled: false }),
+    new THREE.MeshStandardMaterial({ ...pbrRepeat("asphalt_02", 0.25, 0.25, base), color: 0x8a8a8e, roughness: 1 }));
+  rampRoad.position.z = RAMP.z0;
+  rampRoad.receiveShadow = true;
+  group.add(rampRoad);
+  // A waist-high barrier along the back of the cut with a light strip on it; above it, the rock.
+  const barrier = new THREE.Shape();
+  for (let x = RAMP.x0; x <= RAMP.x1 + 4; x += 1) barrier.lineTo(x, rampY(x) + 1.0);
+  for (let x = RAMP.x1 + 4; x >= RAMP.x0; x -= 1) barrier.lineTo(x, rampY(x));
+  barrier.closePath();
+  const wallFace = new THREE.Mesh(new THREE.ExtrudeGeometry(barrier, { depth: 0.35, bevelEnabled: false }), relined(10, 1));
+  wallFace.position.z = CUT_Z + 0.02;
+  group.add(wallFace);
+  const lightPts = [];
+  for (let x = RAMP.x0 + 1; x <= RAMP.x1 - 4; x += 2) lightPts.push(new THREE.Vector3(x, rampY(x) + 1.02, CUT_Z + 0.25));
+  group.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(lightPts), 60, 0.035, 6, false),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xe8f0ff, emissiveIntensity: 2.4 })));
+  // Kerb and posts along the lawn edge, and the portal: the concrete over the tunnel mouth.
+  group.add(new THREE.Mesh(mergeGeometries([
+    new THREE.BoxGeometry(RAMP.x1 - RAMP.x0, 0.45, 0.3).translate((RAMP.x0 + RAMP.x1) / 2, 0.22, RAMP.z1 + 0.15),
+    ...Array.from({ length: 12 }, (_, i) => new THREE.BoxGeometry(0.08, 1.1, 0.08).translate(RAMP.x0 + 3 + i * 6, 0.8, RAMP.z1 + 0.15)),
+  ]), relined(4, 1)));
+  // The portal: a heavy concrete collar round the tunnel mouth, cut open with it.
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(TUNNEL.r + 0.25, 0.28, 10, 48, Math.PI).rotateY(Math.PI / 2).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: 0xbfc3c8, roughness: 0.85 }));
+  collar.position.set(RAMP.x0, TUNNEL.y, tz);
+  group.add(collar);
+  // Colour-changing LED bands every few metres along the tunnel, cut open with it, as in the Loop.
+  const NR = Math.floor((TUNNEL.x1 - TUNNEL.x0) / 4);
+  const rg = new THREE.TorusGeometry(TUNNEL.r - 0.06, 0.03, 6, 48, Math.PI);
+  rg.rotateY(Math.PI / 2); rg.rotateX(-Math.PI / 2);
+  const rings = new THREE.InstancedMesh(rg, new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), NR);
+  const ringCol = new THREE.Color();
   for (let i = 0; i < NR; i++) {
-    const u = (i + 0.5) / NR;
-    rings.setMatrixAt(i, m.compose(curve.getPointAt(u), rq.setFromUnitVectors(Z, curve.getTangentAt(u)), one));
+    rings.setMatrixAt(i, m.makeTranslation(TUNNEL.x1 - 2 - i * 4, TUNNEL.y, tz));
     rings.setColorAt(i, ringCol.setHSL(i / NR, 0.8, 0.6));
   }
-  ride.add(rings);
+  group.add(rings);
 
   // ---------- traffic: one convoy; the camera tails its last car down the ramp ----------
   const car = carGeometries();
@@ -469,19 +454,12 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
   beam.position.set(2.3, 0.7, 0);
   beam.target.position.set(14, 0.2, 0);
   cars[0].add(beam, beam.target);
-  // Distance along the route, then on along the straight tunnel (heading -x), wrapping at its end.
-  const D_JOIN = S_JOIN * LENGTH, X_JOIN = ROUTE.getPointAt(S_JOIN).x, SPAN = TUNNEL.x1 - TUNNEL.x0 - 8;
+  // A car at distance d along the route; traffic loops, entering again from the lawn east of the ramp.
+  // Facing down the road (-x), nose pitched to the slope.
   const placeCar = (c, d) => {
-    if (d <= D_JOIN) {
-      const sr = d / LENGTH;
-      c.position.copy(ROUTE.getPointAt(sr));
-      c.quaternion.setFromUnitVectors(X, ROUTE.getTangentAt(sr));
-    } else {
-      let x = X_JOIN - (d - D_JOIN);
-      while (x < TUNNEL.x0 + 4) x += SPAN;
-      c.position.set(x, ROAD_Y, tz);
-      c.quaternion.setFromAxisAngle(UP, Math.PI);
-    }
+    const sr = (((d / LENGTH) % 1) + 1) % 1, tan = ROUTE.getTangentAt(sr);
+    c.position.copy(ROUTE.getPointAt(sr));
+    c.rotation.set(0, Math.PI, Math.atan2(tan.y, Math.hypot(tan.x, tan.z)));
   };
   let free = null;   // once the camera lets the car go: { d, at }
 
@@ -521,8 +499,8 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
     spot.target.position.set(aim, BORE.y, bz);
     group.add(mast, lamp, spot, spot.target);
   }
-  // A shaft from the clearing up to the lawn, with a ladder: how the team gets down.
-  const SR = 1.5, sx = C.x1 - 2.6, sTop = 0, sBot = C.y1;
+  // A shaft from the clearing up to the Loop's service level, with a ladder: how the team gets down.
+  const SR = 1.5, sx = C.x1 - 2.6, sTop = ROAD_Y - 0.35, sBot = C.y1;
   const shaft = halfTube(SR, sTop - sBot, "y", relined(2, 6));
   shaft.position.set(sx, (sTop + sBot) / 2, CUT_Z + SR + 0.15);
   group.add(shaft);
@@ -622,21 +600,18 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
   let lastX = BORE.x0, spin = 0, lastScreen = 0;
   return {
     group, pickables, envMap,
-    // drive: 0..1, how far the DN600 has come. loop: { s, ride } — the followed car's place on the
-    // route (arc fraction) and whether the ramp and curve are in play (main.js maps the scroll to both).
-    update(t, camera, drive = 1, loop = { s: S_END, ride: false }) {
+    // drive: 0..1, how far the DN600 has come; loopS: the followed car's place on the route (arc
+    // fraction). main.js maps the scroll to both.
+    update(t, camera, drive = 1, loopS = S_END) {
       const dt = 1 / 60;
       chaseMat.uniforms.t.value = t * 0.001;
       blink.forEach((mat, i) => { mat.emissiveIntensity = Math.sin(t * 0.004 + i * 1.7) > 0.6 ? 0.4 : 3; });
-      ride.visible = loop.ride;
-      if (loop.ride) {
-        for (let i = 0; i < NR; i++) rings.setColorAt(i, ringCol.setHSL((i / NR + t * 0.00008) % 1, 0.8, 0.6));
-        rings.instanceColor.needsUpdate = true;
-      }
+      for (let i = 0; i < NR; i++) rings.setColorAt(i, ringCol.setHSL((i / NR + t * 0.00008) % 1, 0.8, 0.6));
+      rings.instanceColor.needsUpdate = true;
       // The convoy: while the camera tails it, its last car is wherever the scroll says; after that
       // it drives on by itself at 9 m/s, the others ahead of it.
       let d;
-      if (loop.s < S_END - 1e-4) { free = null; d = loop.s * LENGTH; }
+      if (loopS < S_END - 1e-4) { free = null; d = loopS * LENGTH; }
       else { free ||= { d: S_END * LENGTH, at: t }; d = free.d + (t - free.at) * 0.009; }
       cars.forEach((c, i) => placeCar(c, d + i * 26));
       // The machine: head at x, the bore and pipe string behind it back to the launch side.
@@ -653,7 +628,7 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
       pipes.instanceMatrix.needsUpdate = true;
       spin += dt * (0.6 + Math.min(speed, 6) * 2.5);
       cutter.rotation.x = spin;
-      work.position.set(x - 2.5, BORE.y + 2.4, CUT_Z + 3.5);
+      work.position.set(x + 3.5, BORE.y + 2.2, CUT_Z + 3.2);   // from the clearing side, back at the cutterhead
       // Spoil: a few chips per frame while it's moving, falling under gravity onto the floor.
       bits.forEach((b, i) => {
         if (b.life <= 0 && speed > 0.05 && Math.random() < 0.25) {
@@ -671,9 +646,9 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
       // The GUI's screen redraws a few times a second when it can be seen; the stacklight shows RUN.
       if (t - lastScreen > 200 && camera.position.y < TUNNEL.y - 4) { screen.draw(t * 0.001); lastScreen = t; }
       lights[2].emissiveIntensity = 2.4 + Math.sin(t * 0.003) * 0.4;
-      // The headlamp sits a little above and ahead of the camera, toward the face; off on the ride in.
+      // The headlamp sits a little above and ahead of the camera, toward the face.
       headlamp.position.set(camera.position.x, camera.position.y + 3, Math.min(camera.position.z - 6, CUT_Z + 22));
-      headlamp.intensity = camera.position.y < -1 && !loop.ride ? 110 : 0;
+      headlamp.intensity = camera.position.y < -1 ? 110 * THREE.MathUtils.clamp((camera.position.z - CUT_Z) / 16, 0.45, 1) : 0;
     },
   };
 }

@@ -202,8 +202,8 @@ function applyCamera(t) {
   const pose = rail.pose(t);
   following = t > rail.follow[0] && t < rail.follow[1];
   camPos.copy(pose.pos); camTarget.copy(pose.target);
-  // A whisper of parallax from the pointer (translation only, no rotation); none on the ride down
-  // the Loop, where the tunnel wall is close.
+  // A whisper of parallax from the pointer (translation only, no rotation); none while tracking the
+  // car down the Loop, so it stays framed.
   mouse.sx += (mouse.x - mouse.sx) * 0.05; mouse.sy += (mouse.y - mouse.sy) * 0.05;
   const k = following ? 0 : Math.min(Math.abs(pose.pos.z), 120) * 0.012;
   camPos.x += mouse.sx * k; camTarget.x += mouse.sx * k;
@@ -540,7 +540,7 @@ renderer.setAnimationLoop((t) => {
     sky.update(t); island.update(t, dt); surface.update(t);
     // The DN600 creeps across as the descent goes deep, slowing as it reaches the centre.
     const run = clamp01((pr - rail.timeOf("tunnel")) / (rail.timeOf("dn600") - rail.timeOf("tunnel")));
-    under.update(t, camera, 1 - (1 - run) * (1 - run), { s: rail.loopS(pr), ride: pr < rail.follow[1] + 0.004 });
+    under.update(t, camera, 1 - (1 - run) * (1 - run), rail.loopS(pr));
     if (camera.position.y < 0) for (const p of pickables) if (p.dynamic) p.box.setFromObject(p.object);
   }
   if (pointerDirty && !focus.active && !indexOpen && pr <= OUTRO_FROM) { setHover(pick(pointerX, pointerY)); pointerDirty = false; }
