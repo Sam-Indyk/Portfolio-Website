@@ -23,7 +23,7 @@ Debug hooks: `?t=0.5` jumps the scroll rail, and `?open=union` opens a panel (`?
 | `src/world/loop.js` | The Loop route (portal ramp, bored curve, straight tunnel) shared by the camera and the tunnel |
 | `src/world/space.js` | Earth shader (Texas blended in for the dive), stars, real galaxies, ISCR array, telescope, Crew Dragon |
 | `src/world/sky.js` | Camera-centred sunset sky, the haze everything fades into, the cloud sea |
-| `src/world/terrain.js` | Real Austin elevation and aerial imagery out to the horizon, lawn near the plaza |
+| `src/world/terrain.js` | Real Austin elevation and aerial imagery out to the horizon, lawn detail and water by near-infrared masks |
 | `src/world/polytopia.js` | Polytopia-Zero island above the clouds, replaying a real game move by move |
 | `src/world/surface.js` | Austin Union chamber (banner and lecterns for the vote), White House, rotunda, trees |
 | `src/world/underground.js` | Strata, the Loop with traffic (TBC), the clearing with the control station's GUI, DN600 from CadQuery breaking through |
@@ -41,7 +41,7 @@ python tools/build_assets.py tbm public/demos/tbm-viewer/data/I.json
 python tools/build_assets.py galaxies ../EigenGalactic        # EigenGalactic venv
 python tools/earth_textures.py <folder of NASA / Solar System Scope maps>
 python tools/fetch_polyhaven.py
-python tools/austin_terrain.py [cache-dir]                     # NAIP imagery, 3DEP elevation, Texas map
+python tools/austin_terrain.py [cache-dir]                     # NAIP imagery and masks, tree canopy, 3DEP elevation, Texas map
 python tools/polytopia_island.py                               # game record for the island, from the replay
 ```
 

@@ -9,9 +9,9 @@ Agreed with Sam on 2026-10-29. This replaces the v1 prototype ("stacked slides")
   through the clouds over real Austin terrain (USGS 3DEP + NAIP, `tools/austin_terrain.py`), levelling
   out at eye height in front of the Union. Ground runs to the horizon; no floating slab.
 - **Surface:** Union close and dominant; White House and rotunda well back to either side; banner in
-  deep maroon. Plaza site: the upland west of MoPac, east of the Mount Bonnell bluff, facing the sunset.
+  deep maroon. Plaza site: Zilker Park's Great Lawn, looking west down its length into the sunset.
 - **Union click:** flies inside the hall; the banner shows the motion and a gold/blue tally, the
-  lecterns light gold (Aye) and blue (No), the leading side brighter. Five past motions rotate per
+  lecterns light gold (Yea) and blue (Nay), the leading side brighter. Five past motions rotate per
   visit; visitors vote and can change their vote; tallies in Supabase (capped per network). The panel
   carries the Union's mission in maroon and gold ("Truth through debate."), as v1 did.
 - **Polytopia:** a floating island above the cloud sea replaying the real game from the replay data
@@ -30,6 +30,25 @@ Agreed with Sam on 2026-10-29. This replaces the v1 prototype ("stacked slides")
 - **Loading:** the opening shows once orbit is in; scrolling stays locked until everything (including
   material textures) has loaded and been drawn once offscreen. Panel, Index and demos scroll with the
   wheel (`data-lenis-prevent`).
+
+## v3.3 changes (2026-11-03, branch `v3.3`)
+
+- **Ground:** the plaza moved to Zilker Park's Great Lawn (Sam's choice), so real parkland surrounds it
+  and nothing is painted into the imagery. Imagery at a third, 0.6 m/px level around the plaza; masks
+  from NAIP's near-infrared band put fine lawn detail on all real vegetation (no circle, no visible
+  tiling) and make Lady Bird Lake reflect the sky. 3D trees stand on the imagery's own tree canopy.
+- **The Loop:** tunnel 5 m across (the real 3.66 m read as too tight); the colour-changing LED rings
+  wash the lining in a full rainbow that drifts along the tunnel; the cars are Model 3-like (true
+  proportions, wheel arches, glasshouse, rolling aero wheels). Heading below ground, the lawn in front
+  of the section peels back to the cut face so the car on the ramp stays in view.
+- **The close:** the clearing is open-fronted and flush with the face (no wall seen edge-on, no rubble
+  hanging on it); one continuous push-in to the closing words.
+- **Vote:** Yea and Nay (stored as aye/no).
+- **Phones:** touch scrolling is native (Lenis listens to no touch events there); the panel scrolls in
+  its own layer and the scene pauses while it fills the screen.
+- **Loading:** images decode off the main thread; the descent builds a piece per frame, then compiles
+  its shaders and uploads its textures a few milliseconds per frame; fog and environment maps exist from
+  the start (adding them later recompiled everything at once). No multi-second freezes in the opening.
 
 ## Concept
 

@@ -111,10 +111,13 @@ kbd { font: 10px var(--mono); border: 1px solid var(--hair); border-radius: 3px;
 body.hovering, body.hovering #gl { cursor: pointer; }
 
 /* ---------- panel ---------- */
-#panel { position: fixed; z-index: 6; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); padding: 84px 36px 36px;
+/* The panel slides in; an inner layer does the scrolling (Safari scrolls a plain overflow box more
+   reliably than one that is also transformed and backdrop-filtered). */
+#panel { position: fixed; z-index: 6; top: 0; right: 0; bottom: 0; width: min(440px, 100vw);
   background: var(--glass); backdrop-filter: blur(22px) saturate(1.2); -webkit-backdrop-filter: blur(22px) saturate(1.2);
-  border-left: 1px solid var(--hair); transform: translateX(104%); transition: transform 0.7s cubic-bezier(.2,.8,.2,1); overflow-y: auto; }
+  border-left: 1px solid var(--hair); transform: translateX(104%); transition: transform 0.7s cubic-bezier(.2,.8,.2,1); }
 #panel.open { transform: none; }
+#panel-scroll { position: absolute; inset: 0; padding: 84px 36px 36px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
 #panel .close, #index .close { position: absolute; top: 26px; right: 32px; }
 .p-meta { color: var(--ink-3); margin: 0 0 18px; }
 .p-title { font: 400 38px/1.05 var(--serif); margin: 0 0 18px; letter-spacing: -0.005em; }
@@ -144,7 +147,9 @@ body.hovering, body.hovering #gl { cursor: pointer; }
 /* ---------- index ---------- */
 /* While Lenis is stopped (loading, or a panel open) the page itself must not scroll natively either. */
 html.lenis.lenis-stopped { overflow: hidden; }
-#panel, #index, #theatre { overscroll-behavior: contain; }
+#index, #theatre { overscroll-behavior: contain; }
+/* No pans that start on the scene while scrolling is locked. */
+html.lenis-stopped #gl { touch-action: none; }
 #index { position: fixed; inset: 0; z-index: 7; background: rgba(3, 4, 6, 0.86); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   opacity: 0; pointer-events: none; transition: opacity 0.4s; overflow-y: auto; }
 #index.open { opacity: 1; pointer-events: auto; }
@@ -168,12 +173,19 @@ html.lenis.lenis-stopped { overflow: hidden; }
 
 @media (max-width: 640px) {
   .top nav { gap: 18px; }
-  #panel { padding: 72px 22px 28px; }
+  #panel-scroll { padding: 72px 22px 28px; }
   .p-title { font-size: 32px; }
   #index-list li { grid-template-columns: 1fr; gap: 2px; }
   #index h2 { font-size: 44px; }
   #hero { top: 15vh; right: 22px; }
   .hero-links a, .hero-links button { padding: 8px 12px; font-size: 13px; }
+}
+/* A panel that fills the screen (phones) takes the page chrome's place. */
+.chrome { transition: opacity 0.4s; }
+.panel-covers .chrome { opacity: 0; }
+/* Touch screens: the panel fills the screen, so an opaque sheet instead of a live blur of the scene. */
+@media (hover: none) and (pointer: coarse) {
+  #panel { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(12, 13, 16, 0.96); }
 }
 @media (prefers-reduced-motion: reduce) {
   #panel, #reticle, #index { transition: none; }

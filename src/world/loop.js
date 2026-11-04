@@ -6,9 +6,11 @@ import * as THREE from "three";
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 export const CUT_Z = 30;
-export const TUNNEL = { y: -14, r: 1.83, z: CUT_Z + 1.95, x0: -80, x1: 25 };   // the straight tunnel; its portal is at x1
-export const ROAD_Y = TUNNEL.y - 1.32;
-export const RAMP = { x0: TUNNEL.x1, x1: 95, z0: CUT_Z, z1: CUT_Z + 3.9 };      // the open cut, portal (x0) up to the lawn (x1)
+// The straight tunnel (its portal at x1): 5 m across, roomier than the real Loop's 3.66 m so the car
+// reads as comfortably inside it from the side.
+export const TUNNEL = { y: -14, r: 2.5, z: CUT_Z + 2.65, x0: -80, x1: 25 };
+export const ROAD_Y = TUNNEL.y - 1.75;
+export const RAMP = { x0: TUNNEL.x1, x1: 95, z0: CUT_Z, z1: CUT_Z + 5.3 };      // the open cut, portal (x0) up to the lawn (x1)
 
 // The ramp's road level: eased at both ends, so it leaves the lawn and meets the tunnel gently.
 export function rampY(x) {
@@ -36,5 +38,5 @@ export const S_END = find((p) => p.x < -2);         // where the camera lets the
 // little above, looking straight at the face like every other shot below ground.
 export function chase(s, back = 22) {
   const car = ROUTE.getPointAt(s);
-  return { car, pos: V(car.x - 1.2, car.y + 4.2, CUT_Z + back), pitch: -9, yaw: 0 };
+  return { car, pos: V(car.x - 1.2, car.y + 4.8, CUT_Z + back), pitch: -9, yaw: 0 };
 }

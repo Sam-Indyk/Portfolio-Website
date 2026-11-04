@@ -59,8 +59,8 @@ const LANDSCAPE = {
     // Straight down to the clearing, where the control station stands, then in on the DN600.
     { t: s(5.85), pos: V(2, -24, CUT + 21), pitch: -5 },
     { t: s(6.3), pos: V(2, -31, CUT + 17), pitch: -5, at: ["controls"] },
-    { t: s(6.8), pos: CLOSE, pitch: -3, at: ["dn600"] },
-    { t: 1, pos: CLOSE.clone().add(V(0, 0.6, 1.4)), pitch: 3 },   // eases back so it sits under the closing words
+    { t: s(6.8), pos: CLOSE.clone().add(V(0, 0.4, 2.9)), pitch: 0, at: ["dn600"] },
+    { t: 1, pos: CLOSE.clone().add(V(0, 0.6, 1.5)), pitch: 3 },   // still closing in, tipped up so it sits under the closing words
   ],
 };
 // Phones: the orbit band is laid out taller (see space.js); on the surface the camera pans along
@@ -86,7 +86,7 @@ const PORTRAIT = {
     { t: s(5.5), pos: V(-4, -13.4, CUT + 30), pitch: -1, at: ["tunnel"] },
     { t: s(5.9), pos: V(4, -24, CUT + 28), pitch: -5 },
     { t: s(6.3), pos: V(6, -31, CUT + 24), pitch: -5, at: ["controls"] },
-    { t: s(6.8), pos: CLOSE.clone().add(V(0, 0.05, 3.2)), pitch: -3, at: ["dn600"] },
+    { t: s(6.8), pos: CLOSE.clone().add(V(0, 0.5, 6.6)), pitch: 0, at: ["dn600"] },
     { t: 1, pos: CLOSE.clone().add(V(0, 0.75, 5)), pitch: 3 },
   ],
 };
