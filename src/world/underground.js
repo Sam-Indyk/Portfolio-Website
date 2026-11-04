@@ -1,13 +1,13 @@
 // Below the plaza, as a cross-section seen side-on throughout. The Loop (The Boring Company): a portal
 // ramp cut down through the lawn east of the plaza, which the camera tracks a car down, and the
-// straight tunnel cut open along the face, with traffic. Below it, a clearing (reception pit) that the UATXcavators DN600
-// breaks into as the scroll drives it across, with the team's control station running the operator
-// GUI. Units are metres; the plaza is y = 0, the cut face is z = CUT_Z.
+// straight tunnel cut open along the face, with traffic, under colour-changing LED rings. Below it, a
+// clearing (reception pit) that the UATXcavators DN600 breaks into as the scroll drives it across, with
+// the team's control station running the operator GUI. Units are metres; the plaza is y = 0, the cut
+// face is z = CUT_Z.
 import * as THREE from "three";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { mergeGeometries, toCreasedNormals } from "three/addons/utils/BufferGeometryUtils.js";
 import { glowMap } from "../textures.js";
-import { pbrRepeat } from "../pbr.js";
+import { pbr, pbrRepeat, triplanar } from "../pbr.js";
 import { SLAB_W } from "./surface.js";
 import { CUT_Z, TUNNEL, ROAD_Y, RAMP, ROUTE, LENGTH, S_END, rampY } from "./loop.js";
 
@@ -64,69 +64,82 @@ function halfTube(r, len, axis, mat) {
   return new THREE.Mesh(g, mat);
 }
 
-// A generic modern electric saloon, lofted from a side profile and a rounded cross-section that
-// narrows above the beltline to a glass roof. The glasshouse is marked in vertex colour, so any paint
-// keeps dark glass. Nose toward +x, 4.7 m long, wheels on y = 0.
+// Turbine-style aero wheel cover, drawn once: a dark disc, five swept lighter blades, the hub.
+function rimTexture() {
+  const S = 256, c = document.createElement("canvas");
+  c.width = c.height = S;
+  const g = c.getContext("2d");
+  g.translate(S / 2, S / 2);
+  g.fillStyle = "#2b2d31"; g.beginPath(); g.arc(0, 0, S / 2, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#8d939a";
+  for (let k = 0; k < 5; k++) {
+    g.save(); g.rotate((k / 5) * Math.PI * 2);
+    g.beginPath(); g.moveTo(18, -10);
+    g.bezierCurveTo(60, -30, 95, -20, 118, 14); g.lineTo(112, 36);
+    g.bezierCurveTo(90, 8, 58, 4, 22, 12); g.closePath(); g.fill();
+    g.restore();
+  }
+  g.strokeStyle = "#5d6168"; g.lineWidth = 6; g.beginPath(); g.arc(0, 0, S / 2 - 5, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = "#1c1d20"; g.beginPath(); g.arc(0, 0, 24, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#a9aeb4"; g.beginPath(); g.arc(0, 0, 9, 0, Math.PI * 2); g.fill();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+// A Tesla Model 3-like saloon, made for the side-on view: its side profile (wheel arches cut in)
+// extruded across the car's width with rounded edges, a narrower dark glasshouse on top, black wheel
+// wells and door seams, and aero wheels (separate, so they can roll). Nose toward +x, wheels on y = 0;
+// 4.69 m long, 1.85 m wide, 1.44 m tall, 2.875 m wheelbase.
 function carGeometries() {
-  const L = 4.7, NU = 56, NV = 44;
-  const lerpTable = (tab, u) => {
-    let i = 0;
-    while (i < tab.length - 2 && u > tab[i + 1][0]) i++;
-    const [u0, a] = tab[i], [u1, b] = tab[i + 1], f = THREE.MathUtils.clamp((u - u0) / (u1 - u0), 0, 1);
-    return a + (b - a) * (f * f * (3 - 2 * f));
+  const R = 0.335, XF = 1.505, XR = -1.37, W = 1.25, T = 0.3, Z = W / 2 + T;   // tyre radius, axles; the sides are at z = ±Z
+  const arch = (cx, pts) => {
+    for (let i = 0; i <= 16; i++) { const a = -0.22 + ((Math.PI + 0.44) * i) / 16; pts.push([cx + 0.42 * Math.cos(a), 0.33 + 0.42 * Math.sin(a)]); }
   };
-  // u runs nose (0) to tail (1).
-  const ROOF = [[0, 0.56], [0.03, 0.66], [0.1, 0.76], [0.28, 0.9], [0.33, 0.95], [0.48, 1.38], [0.6, 1.42], [0.78, 1.3], [0.92, 1.08], [0.98, 1.0], [1, 0.86]];
-  const BELT = [[0, 0.56], [0.28, 0.9], [0.33, 0.93], [0.7, 0.97], [0.92, 1.02], [1, 0.86]];
-  const HALF = [[0, 0.68], [0.035, 0.86], [0.1, 0.93], [0.88, 0.93], [0.97, 0.88], [1, 0.78]];
-  const BASE = 0.22;
-  const pos = [], col = [], idx = [];
-  for (let i = 0; i <= NU; i++) {
-    const u = i / NU, roof = lerpTable(ROOF, u), belt = Math.min(lerpTable(BELT, u), roof), half = lerpTable(HALF, u);
-    for (let j = 0; j < NV; j++) {
-      // Around the section: an angle; a squared-off superellipse (flat sides, flat roof), and above
-      // the beltline the glasshouse draws in toward the roof.
-      const a = (j / NV) * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a);
-      const y = BASE + (roof - BASE) * (0.5 + 0.5 * Math.sign(sn) * Math.abs(sn) ** 0.3);
-      let w = half * Math.sign(c) * Math.abs(c) ** 0.2;
-      if (y > belt) w *= 1 - 0.3 * ((y - belt) / Math.max(0.01, roof - belt)) ** 1.2;   // tumblehome
-      pos.push((0.5 - u) * L, y, w);
-      const glass = y > belt + 0.03 && u > 0.31 && u < 0.95;
-      const trim = y < BASE + 0.14 && (u < 0.07 || u > 0.92);   // black lower bumpers, front and back
-      col.push(...(glass ? [0.05, 0.06, 0.07] : trim ? [0.1, 0.1, 0.11] : [1, 1, 1]));
-    }
-  }
-  for (let i = 0; i < NU; i++) for (let j = 0; j < NV; j++) {
-    const a = i * NV + j, b = i * NV + ((j + 1) % NV), c = a + NV, d = b + NV;
-    idx.push(a, b, c, b, d, c);
-  }
-  // Close the nose and tail with fans.
-  for (const [ring, flip] of [[0, true], [NU, false]]) {
-    const center = pos.length / 3;
-    let cx = 0, cy = 0;
-    for (let j = 0; j < NV; j++) { cx += pos[(ring * NV + j) * 3]; cy += pos[(ring * NV + j) * 3 + 1]; }
-    pos.push(cx / NV, cy / NV, 0); col.push(1, 1, 1);
-    for (let j = 0; j < NV; j++) {
-      const a = ring * NV + j, b = ring * NV + ((j + 1) % NV);
-      idx.push(...(flip ? [center, b, a] : [center, a, b]));
-    }
-  }
-  const body = new THREE.BufferGeometry();
-  body.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  body.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
-  body.setIndex(idx);
-  body.computeVertexNormals();
-  const tyre = new THREE.CylinderGeometry(0.34, 0.34, 0.24, 24).rotateX(Math.PI / 2);
-  const cover = new THREE.CylinderGeometry(0.25, 0.25, 0.26, 24).rotateX(Math.PI / 2);
-  const at = [[1.52, 0.83], [1.52, -0.83], [-1.4, 0.83], [-1.4, -0.83]];
-  return {
-    body,
-    tyres: mergeGeometries(at.map(([x, z]) => tyre.clone().translate(x, 0.34, z))),
-    covers: mergeGeometries(at.map(([x, z]) => cover.clone().translate(x, 0.34, z))),
-    head: mergeGeometries([0.52, -0.52].map((z) => new THREE.BoxGeometry(0.08, 0.05, 0.34).translate(2.27, 0.66, z))),
-    // A light bar across the tail, deeper at the corners.
-    tail: mergeGeometries([new THREE.BoxGeometry(0.06, 0.035, 1.5).translate(-2.33, 0.88, 0), ...[0.62, -0.62].map((z) => new THREE.BoxGeometry(0.06, 0.09, 0.36).translate(-2.31, 0.86, z))]),
+  // Clockwise from under the nose: sill and arches, up the tail, forward along the beltline and hood.
+  const side = [[2.2, 0.17], [XF + 0.46, 0.19]];
+  arch(XF, side);
+  side.push([XF - 0.46, 0.19], [XR + 0.46, 0.19]);
+  arch(XR, side);
+  side.push([XR - 0.46, 0.2], [-2.1, 0.22], [-2.22, 0.28], [-2.3, 0.42], [-2.335, 0.6], [-2.345, 0.85], [-2.34, 0.98], [-2.3, 1.05], [-2.15, 1.045],
+    [-1.55, 1.02], [-0.5, 0.985], [0.85, 0.94], [1.05, 0.91], [1.4, 0.85], [1.8, 0.75], [2.1, 0.66], [2.24, 0.6], [2.32, 0.52], [2.345, 0.42], [2.33, 0.3]);
+  // Extruded across the width, the edges rounded over `bevel` without growing the silhouette, then
+  // narrowed by height (width(y): 1 = full) so the sides curve rather than stand flat; smooth shading
+  // over the curves, crisp at the profile's corners.
+  const extrude = (pts, depth, bevel, size, width) => {
+    const g = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y))),
+      { depth, bevelEnabled: true, bevelThickness: bevel, bevelSize: size, bevelOffset: -size, bevelSegments: 6, curveSegments: 1 }).translate(0, 0, -depth / 2);
+    const a = g.getAttribute("position");
+    for (let i = 0; i < a.count; i++) a.setZ(i, a.getZ(i) * width(a.getY(i)));
+    return toCreasedNormals(g, 0.7);
   };
+  const box = (w, h, d, x, y, z) => new THREE.BoxGeometry(w, h, d).translate(x, y, z).toNonIndexed();
+  // Body, with its mirrors on short arms at the base of the A-pillars.
+  // Fullest at the door handles, drawing in toward the sill and the shoulder.
+  const bodyWidth = (y) => 1 - 0.075 * Math.min(1, ((y - 0.62) / 0.5) ** 2);
+  const shell = mergeGeometries([extrude(side, W, T, 0.08, bodyWidth),
+    ...[-1, 1].flatMap((sg) => [new THREE.SphereGeometry(1, 12, 8).scale(0.09, 0.055, 0.075).translate(0.74, 1.0, sg * 0.98).toNonIndexed(), box(0.07, 0.03, 0.1, 0.79, 0.965, sg * 0.88)])]);
+  // The glasshouse leans in toward the roof.
+  const glass = extrude([[0.95, 0.9], [0.86, 0.95], [0.55, 1.1], [0.25, 1.26], [0.05, 1.36], [-0.15, 1.42], [-0.45, 1.443], [-0.85, 1.43],
+    [-1.15, 1.36], [-1.4, 1.2], [-1.55, 1.07], [-1.62, 1.0], [-1.62, 0.95]], 1.2, 0.2, 0.1, (y) => 1 - 0.5 * Math.max(0, y - 0.95));
+  // Black: tyres, the wheel wells seen past them, door seams and flush handles.
+  const tyre = new THREE.CylinderGeometry(R, R, 0.235, 32).rotateX(Math.PI / 2).toNonIndexed();
+  const well = new THREE.CylinderGeometry(0.42, 0.42, 0.04, 24).rotateX(Math.PI / 2).toNonIndexed();
+  const black = mergeGeometries([[XF, XR].flatMap((x) => [-1, 1].flatMap((sg) => [tyre.clone().translate(x, R, sg * 0.79), well.clone().translate(x, 0.33, sg * 0.58)])),
+    // Door seams, following the side's curve.
+    [[0.93, 0.565, 0.5], [-0.2, 0.565, 0.56], [-1.12, 0.78, 0.14]].flatMap(([x, y, h]) => [-1, 1].map((sg) => {
+      const g = new THREE.BoxGeometry(0.012, h, 0.006, 1, 8, 1).translate(x, y, sg * (Z + 0.002)).toNonIndexed(), a = g.getAttribute("position");
+      for (let i = 0; i < a.count; i++) a.setZ(i, a.getZ(i) * bodyWidth(a.getY(i)));
+      return g;
+    })),
+    [0.42, -0.68].flatMap((x) => [-1, 1].map((sg) => box(0.16, 0.025, 0.006, x, 0.62, sg * (Z + 0.002))))].flat());
+  // Lamps, in vertex colour: headlights swept round the front corners, a light bar across the tail.
+  const lamp = (geo, rgb) => { geo.setAttribute("color", new THREE.Float32BufferAttribute(Array.from({ length: geo.getAttribute("position").count }, () => rgb).flat(), 3)); return geo; };
+  const lights = mergeGeometries([...[-1, 1].map((sg) => lamp(new THREE.BoxGeometry(0.24, 0.035, 0.24).rotateY(sg * 0.35).translate(2.1, 0.64, sg * 0.66).toNonIndexed(), [1, 1, 1])),
+    lamp(box(0.08, 0.06, 1.62, -2.3, 0.97, 0), [1, 0.08, 0.04])]);
+  const rim = new THREE.CircleGeometry(0.235, 32);
+  return { R, shell, glass, black, lights, rim, rimBack: rim.clone().rotateY(Math.PI), wheels: [[XF, 1], [XF, -1], [XR, 1], [XR, -1]].map(([x, sg]) => [x, sg * 0.91]) };
 }
 
 // The operator interface on the control station's screen, after the team's PyQt GUI: cream panels,
@@ -225,11 +238,11 @@ function controlScreen() {
   return { tex, draw };
 }
 
-export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs }) {
+// envMap: a room-light environment (main.js makes it from RoomEnvironment before the opening shows).
+export async function buildUnderground({ isMobile, base = "/", fetchAs, nextFrame = async () => {}, envMap }) {
   const group = new THREE.Group();
   const pickables = [];
   const blink = [];
-  const envMap = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
   const m = new THREE.Matrix4(), one = new THREE.Vector3(1, 1, 1), zero = new THREE.Vector3(0, 0, 0), q0 = new THREE.Quaternion();
 
   // ---------- strata: the cut face, in bands that change with depth; open where the clearing is ----------
@@ -274,8 +287,33 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
   const steel = new THREE.MeshStandardMaterial({ color: 0x8e9298, metalness: 0.8, roughness: 0.4 });
 
   // ---------- the Loop: the straight tunnel, cut open lengthwise ----------
-  const L = TUNNEL.x1 - TUNNEL.x0, tz = TUNNEL.z, tx = (TUNNEL.x0 + TUNNEL.x1) / 2;
-  const tube = halfTube(TUNNEL.r, L, "x", relined(L / 3, 2));
+  const L = TUNNEL.x1 - TUNNEL.x0, tz = TUNNEL.z, tx = (TUNNEL.x0 + TUNNEL.x1) / 2, TR = TUNNEL.r;
+  // Where the lining is, dy above the tunnel's axis (its back half, behind the cut).
+  const wallZ = (dy) => tz - Math.sqrt(Math.max(0, TR * TR - dy * dy));
+  // Colour-changing LED rings every 4 m, as in the Loop, washing the lining in their light: brightest
+  // at each ring, a soft glow between; the rainbow runs twice along the tunnel and drifts (update()
+  // turns it). Cars passing through pick up the colours too.
+  const NR = Math.floor(L / 4), RING0 = TUNNEL.x1 - 2;
+  const ledTime = { value: 0 };
+  const ledWash = (mat, strength) => {
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.ledT = ledTime;
+      sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vLW;")
+        .replace("#include <project_vertex>", "#include <project_vertex>\nvLW = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+      sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>
+          uniform float ledT; varying vec3 vLW;`)
+        .replace("#include <emissivemap_fragment>", `#include <emissivemap_fragment>
+          float ringU = (${RING0.toFixed(1)} - vLW.x) / 4.0;
+          float dr = abs(fract(ringU + 0.5) - 0.5) * 4.0;                     // metres to the nearest ring
+          vec3 hue = clamp(abs(mod(fract(ringU * ${(2 / NR).toFixed(5)} + ledT) * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+          vec3 led = pow(0.28 + 0.64 * hue, vec3(2.2));                         // the rings' own colour (HSL 0.8, 0.6), linear
+          float onTube = step(${(TUNNEL.x0 + 0.5).toFixed(1)}, vLW.x) * step(vLW.x, ${(TUNNEL.x1 + 0.3).toFixed(1)});
+          totalEmissiveRadiance += led * (0.06 + 0.75 * exp(-dr * dr * 1.4)) * ${strength.toFixed(2)} * onTube;`);
+    };
+    mat.customProgramCacheKey = () => `led-${strength}`;
+    return mat;
+  };
+  const tube = halfTube(TR, L, "x", ledWash(relined(L / 3, 2), 1));
   tube.position.set(tx, TUNNEL.y, tz);
   tube.receiveShadow = true;
   group.add(tube);
@@ -285,19 +323,20 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
     group.add(rim);
   }
   // Segment joints every 1.5 m (half rings).
-  const jg = new THREE.TorusGeometry(TUNNEL.r - 0.01, 0.014, 6, 48, Math.PI);
+  const jg = new THREE.TorusGeometry(TR - 0.01, 0.014, 6, 64, Math.PI);
   jg.rotateY(Math.PI / 2); jg.rotateX(-Math.PI / 2);
   const joints = new THREE.InstancedMesh(jg, new THREE.MeshStandardMaterial({ color: 0x55534f, roughness: 1 }), Math.floor(L / 1.5));
   for (let i = 0; i < joints.count; i++) joints.setMatrixAt(i, m.makeTranslation(TUNNEL.x0 + 0.75 + i * 1.5, TUNNEL.y, tz));
   group.add(joints);
   // A full-width roadway: in the cutaway it shows as a slab across the tunnel.
-  const road = new THREE.Mesh(new THREE.BoxGeometry(L, 0.3, 2.9), new THREE.MeshStandardMaterial({ ...pbrRepeat("asphalt_02", L / 2.7, 1, base), color: 0x8a8a8e, roughness: 1 }));
+  const road = new THREE.Mesh(new THREE.BoxGeometry(L, 0.3, 2 * (tz - wallZ(ROAD_Y - TUNNEL.y)) - 0.1),
+    ledWash(new THREE.MeshStandardMaterial({ ...pbrRepeat("asphalt_02", L / 3.5, 1, base), color: 0x8a8a8e, roughness: 1 }), 0.45));
   road.position.set(tx, ROAD_Y - 0.15, tz);
   road.receiveShadow = true;
   group.add(road);
   // Cool-white LED strips along the crown and a slow chase of colour along the wall, as in the Loop.
   const strip = new THREE.Mesh(new THREE.BoxGeometry(L, 0.05, 0.1), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xe8f0ff, emissiveIntensity: 2.2 }));
-  strip.position.set(tx, TUNNEL.y + 1.55, tz - 0.95);
+  strip.position.set(tx, TUNNEL.y + 0.85 * TR, wallZ(0.85 * TR) + 0.08);
   group.add(strip);
   const chaseMat = new THREE.ShaderMaterial({
     uniforms: { t: { value: 0 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
@@ -310,7 +349,7 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
       }`,
   });
   const chase = new THREE.Mesh(new THREE.BoxGeometry(L, 0.04, 0.04), chaseMat);
-  chase.position.set(tx, TUNNEL.y - 0.7, tz - 1.7);
+  chase.position.set(tx, TUNNEL.y - 0.3 * TR, wallZ(-0.3 * TR) + 0.04);
   group.add(chase);
 
   // Cameras and network switch cabinets along the wall: what the integration testing covered.
@@ -326,7 +365,7 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
     led.position.set(0.13, 0.035, 0.045);
     blink.push(led.material);
     cam.add(body, lens, led);
-    cam.position.set(x, TUNNEL.y + 1.1, tz - 1.4);
+    cam.position.set(x, TUNNEL.y + 0.45 * TR, wallZ(0.45 * TR) + 0.15);
     cam.rotation.set(0, -0.35, -0.12);
     group.add(cam);
   }
@@ -338,11 +377,11 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
     const face = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.25), new THREE.MeshStandardMaterial({ map: panelTex, emissive: 0xffffff, emissiveMap: panelTex, emissiveIntensity: 1.6 }));
     face.position.set(0, 0.18, 0.151);
     cab.add(box, face);
-    cab.position.set(x, ROAD_Y + 0.75, tz - 1.62);
+    cab.position.set(x, ROAD_Y + 0.75, wallZ(ROAD_Y + 0.75 - TUNNEL.y) + 0.22);
     group.add(cab);
     if (!focusCab || Math.abs(x + 8) < Math.abs(focusCab.position.x + 8)) focusCab = cab;
   }
-  pickables.push({ id: "tunnel", object: tube, tagAnchor: focusCab, focus: { pos: new THREE.Vector3(focusCab.position.x + 2.5, TUNNEL.y + 0.4, tz + 6.5), target: focusCab.position.clone().setY(TUNNEL.y) } });
+  pickables.push({ id: "tunnel", object: tube, tagAnchor: focusCab, focus: { pos: new THREE.Vector3(focusCab.position.x + 2.5, TUNNEL.y + 0.4, tz + 8), target: focusCab.position.clone().setY(TUNNEL.y) } });
   for (const x of [-20, 20]) {
     const l = new THREE.PointLight(0xe6eeff, 40, 40, 1.4);
     l.position.set(x, TUNNEL.y + 1.0, tz + 1.2);
@@ -356,7 +395,8 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
     group.add(d);
     return d;
   };
-  for (let x = TUNNEL.x0 + 3; x < TUNNEL.x1; x += 7) { pool(x, TUNNEL.y + 2.7, 9, 3.4, 0.12, 0xdfe8ff); pool(x, TUNNEL.y - 2.5, 9, 3.0, 0.08, 0xdfe8ff); }
+  for (let x = TUNNEL.x0 + 3; x < TUNNEL.x1; x += 7) { pool(x, TUNNEL.y + TR + 0.9, 9, 3.4, 0.12, 0xdfe8ff); pool(x, TUNNEL.y - TR - 0.7, 9, 3.0, 0.08, 0xdfe8ff); }
+  await nextFrame();
 
   // ---------- survey marks: depth every 10 m on the left, formation names on the right ----------
   // Painted on the face like an engineering section.
@@ -418,40 +458,53 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
     ...Array.from({ length: 12 }, (_, i) => new THREE.BoxGeometry(0.08, 1.1, 0.08).translate(RAMP.x0 + 3 + i * 6, 0.8, RAMP.z1 + 0.15)),
   ]), relined(4, 1)));
   // The portal: a heavy concrete collar round the tunnel mouth, cut open with it.
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(TUNNEL.r + 0.25, 0.28, 10, 48, Math.PI).rotateY(Math.PI / 2).rotateX(-Math.PI / 2),
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(TR + 0.25, 0.28, 10, 64, Math.PI).rotateY(Math.PI / 2).rotateX(-Math.PI / 2),
     new THREE.MeshStandardMaterial({ color: 0xbfc3c8, roughness: 0.85 }));
   collar.position.set(RAMP.x0, TUNNEL.y, tz);
   group.add(collar);
-  // Colour-changing LED bands every few metres along the tunnel, cut open with it, as in the Loop.
-  const NR = Math.floor((TUNNEL.x1 - TUNNEL.x0) / 4);
-  const rg = new THREE.TorusGeometry(TUNNEL.r - 0.06, 0.03, 6, 48, Math.PI);
+  // The LED rings themselves (half rings, cut open with the tunnel).
+  const rg = new THREE.TorusGeometry(TR - 0.07, 0.05, 8, 64, Math.PI);
   rg.rotateY(Math.PI / 2); rg.rotateX(-Math.PI / 2);
   const rings = new THREE.InstancedMesh(rg, new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), NR);
   const ringCol = new THREE.Color();
   for (let i = 0; i < NR; i++) {
-    rings.setMatrixAt(i, m.makeTranslation(TUNNEL.x1 - 2 - i * 4, TUNNEL.y, tz));
+    rings.setMatrixAt(i, m.makeTranslation(RING0 - i * 4, TUNNEL.y, tz));
     rings.setColorAt(i, ringCol.setHSL(i / NR, 0.8, 0.6));
   }
   group.add(rings);
 
   // ---------- traffic: one convoy; the camera tails its last car down the ramp ----------
   const car = carGeometries();
-  const paints = [0xf2f2f0, 0x24427a, 0xa3171c, 0x111214, 0x8c9096];
-  const tyreMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.85 });
-  const coverMat = new THREE.MeshStandardMaterial({ color: 0xb9bdc2, metalness: 0.8, roughness: 0.3 });
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 3 });
-  const tailMat = new THREE.MeshStandardMaterial({ color: 0x400000, emissive: 0xff2a1a, emissiveIntensity: 2.5 });
+  const paints = [0xdcdcd8, 0x1f3a6e, 0x9e1b1f, 0x111214, 0x8c9096];   // pearl white, deep blue, red, black, silver
+  // The cars carry their own reflections at full strength (main.js only adds a faint fill below ground).
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x07090c, metalness: 0.6, roughness: 0.05, envMap, envMapIntensity: 1.6 });
+  const blackMat = new THREE.MeshStandardMaterial({ color: 0x0d0d0e, roughness: 0.75, envMap, envMapIntensity: 0.3 });
+  const lightMat = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+  const rimSpin = { value: 0 };
+  const rimMat = new THREE.MeshStandardMaterial({ map: rimTexture(), metalness: 0.5, roughness: 0.4, envMap, envMapIntensity: 1 });
+  rimMat.onBeforeCompile = (sh) => {
+    sh.uniforms.spinBlur = rimSpin;
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform float spinBlur;")
+      .replace("#include <map_fragment>", "#include <map_fragment>\n// At speed the blades smear to an even grey (rather than strobing).\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.1), spinBlur);");
+  };
+  rimMat.customProgramCacheKey = () => "rim-blur";
   const cars = paints.map((paint) => {
     const c = new THREE.Group();
-    c.add(new THREE.Mesh(car.body, new THREE.MeshStandardMaterial({ color: paint, vertexColors: true, metalness: 0.45, roughness: 0.26, envMapIntensity: 1.2 })),
-      new THREE.Mesh(car.tyres, tyreMat), new THREE.Mesh(car.covers, coverMat), new THREE.Mesh(car.head, headMat), new THREE.Mesh(car.tail, tailMat));
+    c.add(new THREE.Mesh(car.shell, ledWash(new THREE.MeshPhysicalMaterial({ color: paint, metalness: 0.3, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08, envMap, envMapIntensity: 1 }), 0.2)),
+      new THREE.Mesh(car.glass, glassMat), new THREE.Mesh(car.black, blackMat), new THREE.Mesh(car.lights, lightMat));
+    c.userData.rims = car.wheels.map(([x, z]) => {
+      const r = new THREE.Mesh(z > 0 ? car.rim : car.rimBack, rimMat);
+      r.position.set(x, car.R, z);
+      c.add(r);
+      return r;
+    });
     c.traverse((o) => { if (o.isMesh) o.castShadow = o.receiveShadow = true; });
     group.add(c);
     return c;
   });
   // The followed car lights the tunnel ahead of it.
   const beam = new THREE.SpotLight(0xf4f6ff, 70, 40, 0.5, 0.6, 1.3);
-  beam.position.set(2.3, 0.7, 0);
+  beam.position.set(2.3, 0.64, 0);
   beam.target.position.set(14, 0.2, 0);
   cars[0].add(beam, beam.target);
   // A car at distance d along the route; traffic loops, entering again from the lawn east of the ramp.
@@ -461,31 +514,40 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
     c.position.copy(ROUTE.getPointAt(sr));
     c.rotation.set(0, Math.PI, Math.atan2(tan.y, Math.hypot(tan.x, tan.z)));
   };
-  let free = null;   // once the camera lets the car go: { d, at }
+  let free = null, lastD = 0;   // once the camera lets the car go: { d, at }
 
   // ---------- the clearing: a reception pit the DN600 breaks into ----------
-  const C = CHAMBER, CW = C.x1 - C.x0, CH = C.y1 - C.y0, CD = C.back + C.front;
+  const C = CHAMBER, CW = C.x1 - C.x0, CH = C.y1 - C.y0;
   const bz = CUT_Z + BORE.r + 0.06;
-  const shotcrete = new THREE.MeshStandardMaterial({ ...pbrRepeat("brushed_concrete_2", CW / 4, CH / 4, base), color: 0xa9a49b, roughness: 0.95, side: THREE.BackSide, envMapIntensity: 0.2 });
-  // An open-fronted room: seen from in front, the box's own front face is culled.
-  const room = new THREE.Mesh(new THREE.BoxGeometry(CW, CH, CD), shotcrete);
-  room.position.set((C.x0 + C.x1) / 2, (C.y0 + C.y1) / 2, CUT_Z - C.back + CD / 2);
+  const conc = pbr("brushed_concrete_2", 1, base);
+  const shotcrete = triplanar(new THREE.MeshStandardMaterial({ map: conc.map, roughnessMap: conc.roughnessMap, color: 0xa9a49b, roughness: 0.95, envMapIntensity: 0.2 }), 0.25);
+  // An open-fronted room cut back into the rock: back wall, floor, ceiling and the far wall, facing in,
+  // flush with the face. Back wall, floor and ceiling run on past its near edge, behind the face, so
+  // looking in at an angle finds more room there, never a side wall seen edge-on.
+  const CL = C.x0 - 8, zb = CUT_Z - C.back, zf = CUT_Z + C.front, zc = (zb + CUT_Z) / 2;
+  const room = new THREE.Mesh(mergeGeometries([
+    new THREE.PlaneGeometry(C.x1 - CL, CH).translate((CL + C.x1) / 2, (C.y0 + C.y1) / 2, zb),
+    new THREE.PlaneGeometry(CW, zf - zb).rotateX(-Math.PI / 2).translate((C.x0 + C.x1) / 2, C.y0, (zb + zf) / 2),
+    new THREE.PlaneGeometry(C.x0 - CL, CUT_Z - zb).rotateX(-Math.PI / 2).translate((CL + C.x0) / 2, C.y0, zc),
+    new THREE.PlaneGeometry(C.x1 - CL, CUT_Z - zb).rotateX(Math.PI / 2).translate((CL + C.x1) / 2, C.y1, zc),
+    new THREE.PlaneGeometry(CUT_Z - zb, CH).rotateY(-Math.PI / 2).translate(C.x1, (C.y0 + C.y1) / 2, zc),
+  ]), shotcrete);
   room.receiveShadow = true;
   group.add(room);
+  // Only the floor comes forward of the face (it carries the cradle); a lamp under the roof lights the room.
+  const roomLight = new THREE.PointLight(0xffd9a8, 16, 18, 1.5);
+  roomLight.position.set((C.x0 + C.x1) / 2, C.y1 - 0.7, CUT_Z - 3);
+  group.add(roomLight);
   // Reception cradle the machine drives out onto.
   const cradleTop = BORE.y - BORE.r - 0.06;
   group.add(new THREE.Mesh(mergeGeometries([
     ...[-0.24, 0.24].map((dz) => new THREE.BoxGeometry(3, 0.12, 0.1).translate(C.x0 + 1.5, cradleTop, bz + dz)),
     ...[0, 1.45, 2.9].map((dx) => new THREE.BoxGeometry(0.1, cradleTop - C.y0, 0.7).translate(C.x0 + 0.05 + dx, (cradleTop + C.y0) / 2, bz)),
   ]), steel));
-  // Broken rock where it comes through the wall, and on the floor below.
+  // Broken rock on the floor below where it comes through.
   const rubbleG = [];
   let seed = 3;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  for (let i = 0; i < 46; i++) {
-    const a = rnd() * Math.PI * 2, r = BORE.r + 0.02 + rnd() * 0.16;
-    rubbleG.push(new THREE.DodecahedronGeometry(0.02 + rnd() * 0.04, 0).translate(C.x0 + 0.02, BORE.y + Math.sin(a) * r, bz + Math.cos(a) * r));
-  }
   for (let i = 0; i < 30; i++) rubbleG.push(new THREE.DodecahedronGeometry(0.02 + rnd() * 0.06, 0).translate(C.x0 + 0.2 + rnd() * 1.4, C.y0 + 0.03, bz + (rnd() - 0.5) * 1.4));
   group.add(new THREE.Mesh(mergeGeometries(rubbleG), new THREE.MeshStandardMaterial({ color: 0x6f6658, roughness: 1, flatShading: true })));
   // Work lights on tripods.
@@ -524,6 +586,7 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
     ...[[-0.8, -0.35], [0.8, -0.35], [-0.8, 0.35], [0.8, 0.35]].map(([x, z]) => new THREE.BoxGeometry(0.04, 0.76, 0.04).translate(x, 0.38, z)),
   ]), deskMat));
   const screen = controlScreen();
+  await nextFrame();
   const monitor = new THREE.Group();
   monitor.add(new THREE.Mesh(mergeGeometries([new THREE.BoxGeometry(0.98, 0.64, 0.04), new THREE.BoxGeometry(0.06, 0.3, 0.06).translate(0, -0.42, -0.03), new THREE.BoxGeometry(0.3, 0.02, 0.2).translate(0, -0.57, -0.03)]), new THREE.MeshStandardMaterial({ color: 0x18191b, roughness: 0.5 })));
   const display = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 0.575), new THREE.MeshBasicMaterial({ map: screen.tex, toneMapped: false }));
@@ -582,7 +645,7 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
     group.add(bulb, bracket);
     pool(x, BORE.y + 1.0, 5.5, 4.6, 0.3);
   }
-  const work = new THREE.SpotLight(0xffc27a, 35, 14, 0.55, 0.7, 1.5);
+  const work = new THREE.SpotLight(0xffc27a, 45, 20, 0.5, 0.7, 1.5);
   work.target = tbm;
   group.add(work);
   // Spoil thrown off the face while the machine moves.
@@ -606,7 +669,8 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
       const dt = 1 / 60;
       chaseMat.uniforms.t.value = t * 0.001;
       blink.forEach((mat, i) => { mat.emissiveIntensity = Math.sin(t * 0.004 + i * 1.7) > 0.6 ? 0.4 : 3; });
-      for (let i = 0; i < NR; i++) rings.setColorAt(i, ringCol.setHSL((i / NR + t * 0.00008) % 1, 0.8, 0.6));
+      ledTime.value = (t * 0.00008) % 1;
+      for (let i = 0; i < NR; i++) rings.setColorAt(i, ringCol.setHSL(((2 * i) / NR + ledTime.value) % 1, 0.8, 0.6));
       rings.instanceColor.needsUpdate = true;
       // The convoy: while the camera tails it, its last car is wherever the scroll says; after that
       // it drives on by itself at 9 m/s, the others ahead of it.
@@ -614,6 +678,10 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
       if (loopS < S_END - 1e-4) { free = null; d = loopS * LENGTH; }
       else { free ||= { d: S_END * LENGTH, at: t }; d = free.d + (t - free.at) * 0.009; }
       cars.forEach((c, i) => placeCar(c, d + i * 26));
+      // Wheels roll with the distance driven (forward is +x in the car's frame).
+      for (const c of cars) for (const r of c.userData.rims) r.rotation.z = -d / car.R;
+      rimSpin.value = THREE.MathUtils.smoothstep(Math.abs(d - lastD) / car.R, 0.12, 0.5);
+      lastD = d;
       // The machine: head at x, the bore and pipe string behind it back to the launch side.
       const x = THREE.MathUtils.lerp(BORE.x0 + 20, BORE.end, drive);
       const speed = Math.abs(x - lastX) / dt;
@@ -628,7 +696,7 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
       pipes.instanceMatrix.needsUpdate = true;
       spin += dt * (0.6 + Math.min(speed, 6) * 2.5);
       cutter.rotation.x = spin;
-      work.position.set(x + 3.5, BORE.y + 2.2, CUT_Z + 3.2);   // from the clearing side, back at the cutterhead
+      work.position.set(x + 1.2, BORE.y + 2.4, CUT_Z + 7);   // from out front, so it doesn't rake across the rock
       // Spoil: a few chips per frame while it's moving, falling under gravity onto the floor.
       bits.forEach((b, i) => {
         if (b.life <= 0 && speed > 0.05 && Math.random() < 0.25) {
@@ -647,7 +715,7 @@ export async function buildUnderground({ renderer, isMobile, base = "/", fetchAs
       if (t - lastScreen > 200 && camera.position.y < TUNNEL.y - 4) { screen.draw(t * 0.001); lastScreen = t; }
       lights[2].emissiveIntensity = 2.4 + Math.sin(t * 0.003) * 0.4;
       // The headlamp sits a little above and ahead of the camera, toward the face.
-      headlamp.position.set(camera.position.x, camera.position.y + 3, Math.min(camera.position.z - 6, CUT_Z + 22));
+      headlamp.position.set(camera.position.x, camera.position.y + 3, THREE.MathUtils.clamp(camera.position.z - 6, CUT_Z + 3, CUT_Z + 22));
       headlamp.intensity = camera.position.y < -1 ? 110 * THREE.MathUtils.clamp((camera.position.z - CUT_Z) / 16, 0.45, 1) : 0;
     },
   };

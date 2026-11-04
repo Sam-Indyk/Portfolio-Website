@@ -5,7 +5,6 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { flagMap, windowMap, leafClusterMap, glowMap } from "../textures.js";
 import { pbr, triplanar } from "../pbr.js";
-import { LAWN } from "./terrain.js";
 import { CUT_Z } from "./loop.js";
 
 // The cross-section cut (loop.js): nothing stands in front of it, so from below the plaza sits behind its edge.
@@ -75,7 +74,7 @@ function bannerArt(seal) {
       const lines = wrap(m.title, W - 150);
       const top = 470 - ((lines.length - 1) * 84) / 2;
       lines.forEach((l, i) => g.fillText(l, W / 2, top + i * 84));
-      // Tally: gold for Aye, blue for No, split by share of the vote.
+      // Tally: gold for Yea, blue for Nay, split by share of the vote.
       const total = m.ayes + m.noes, share = total ? m.ayes / total : 0.5, bx = 90, bw = W - 180, by = 720;
       g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(bx, by, bw, 18);
       if (total) {
@@ -83,8 +82,8 @@ function bannerArt(seal) {
         g.fillStyle = NO; g.fillRect(bx + bw * share, by, bw * (1 - share), 18);
       }
       g.font = `500 26px ${mono}`;
-      g.textAlign = "left"; g.fillStyle = AYE; g.fillText(`AYE ${m.known ? m.ayes : "–"}`, bx, by + 66);
-      g.textAlign = "right"; g.fillStyle = "#8fb0ff"; g.fillText(`${m.known ? m.noes : "–"} NO`, bx + bw, by + 66);
+      g.textAlign = "left"; g.fillStyle = AYE; g.fillText(`YEA ${m.known ? m.ayes : "–"}`, bx, by + 66);
+      g.textAlign = "right"; g.fillStyle = "#8fb0ff"; g.fillText(`${m.known ? m.noes : "–"} NAY`, bx + bw, by + 66);
       g.textAlign = "center"; g.fillStyle = "rgba(243,233,218,0.55)"; g.font = `500 19px ${mono}`;
       g.fillText(total ? "VOTES CAST ONLINE" : "NO VOTES YET", W / 2, by + 122);
     }
@@ -393,7 +392,7 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   bannerTrim.position.copy(banner.position).add(new THREE.Vector3(0, 0, 0.01));
   au.add(bannerTrim, banner);
   const wood = triplanar(new THREE.MeshStandardMaterial({ map: woodMaps.map, roughnessMap: woodMaps.roughnessMap, color: 0x6b4128, roughness: 0.7 }), 1.2);
-  // Two lecterns facing off: Aye (gold) on the left as you look in, No (blue) on the right. Their
+  // Two lecterns facing off: Yea (gold) on the left as you look in, Nay (blue) on the right. Their
   // front panels light in their side's colour while a motion is open.
   const sides = [];
   for (const [sx, hex] of [[-1, AYE], [1, NO]]) {
@@ -476,7 +475,7 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
       lines.forEach((l, i) => g.fillText(l, W / 2, 250 - (lines.length - 1) * 34 + i * 68));
       g.fillStyle = "#c9a14a"; g.fillRect(W / 2 - 60, 432, 120, 2);
       g.fillStyle = "#d9b25a"; g.font = `600 40px ${mono}`; g.fillText("CLICK TO VOTE", W / 2, 520);
-      g.fillStyle = "rgba(243,233,218,0.7)"; g.font = `500 22px ${mono}`; g.fillText("AYE  OR  NO", W / 2, 572);
+      g.fillStyle = "rgba(243,233,218,0.7)"; g.font = `500 22px ${mono}`; g.fillText("YEA  OR  NAY", W / 2, 572);
       tex.needsUpdate = true;
     };
     draw();
@@ -502,7 +501,13 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   // Crowns built from alpha-cut leaf cards; card normals point away from the crown centre so the
   // crown shades like a soft volume, not like flat planes.
   const leafTex = leafClusterMap();
-  const leaf = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.3, alphaToCoverage: true, side: THREE.DoubleSide, color: 0xc6d6a8, roughness: 0.9, envMapIntensity: 0.35 });
+  const leaf = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.3, alphaToCoverage: true, side: THREE.DoubleSide, color: 0x6d9262, roughness: 0.9, envMapIntensity: 0.35 });
+  // Both faces of a card keep its crown-shaped normal: by default the back face's normal flips, so half
+  // the leaves on a crown's shaded side lit up gold as if they faced the sun.
+  leaf.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace("#include <normal_fragment_begin>", THREE.ShaderChunk.normal_fragment_begin.replace("normal *= faceDirection;", ""));
+  };
+  leaf.customProgramCacheKey = () => "leaf-normals";
   const crownGeo = (seed) => {
     let cs2 = seed;
     const r = () => ((cs2 = (cs2 * 16807) % 2147483647) / 2147483647);
@@ -523,11 +528,12 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   const crownGeos = [crownGeo(11), crownGeo(23), crownGeo(37)];
   const trunkGeo = new THREE.CylinderGeometry(0.22, 0.38, 4, 7);
   const bark = new THREE.MeshStandardMaterial({ color: 0x2b2219, roughness: 1 });
-  const spots = [];
   let ts = 5;
   const rr = () => ((ts = (ts * 16807) % 2147483647) / 2147483647);
-  // A park around the plaza: clear of the buildings, the forecourt, and the lines of sight from the
-  // landing spot to the White House and the rotunda.
+  // Zilker's own trees: one wherever the aerial imagery shows canopy (tools/austin_terrain.py), nearest
+  // first, so each stands on its own crown in the photo. Kept clear of the buildings, the forecourt,
+  // the lines of sight from the landing spot to the White House and the rotunda, and the strip in
+  // front of the cut where the camera follows the car down into the Loop.
   const clear = [[LAY.wh[0], LAY.wh[1], 38 * LAY.wh[2]], [LAY.ro[0], LAY.ro[1], 18], [0, LAY.au[1], 28]];
   const eye = new THREE.Vector2(0, 40);
   const sight = (x, z, [bx, bz], r) => {
@@ -537,14 +543,9 @@ export function buildSurface({ textures, renderer, isMobile, portrait = false, b
   };
   const free = (x, z) => clear.every(([cx, cz, r]) => Math.hypot(x - cx, z - cz) > r)
     && !(Math.abs(x) < 70 && z > -48)                           // open, sunlit lawn in front of the Union
-    && z < CUT_Z - 4
+    && !(x > -80 && x < 170 && z > CUT_Z - 4 && z < CUT_Z + 40)
     && sight(x, z, LAY.wh, 34) && sight(x, z, LAY.ro, 24);
-  // At an 8° sun each tree throws a ~70 m shadow, so the park is planted sparsely.
-  for (let tries = 0; spots.length < (isMobile ? 100 : 170) && tries < 8000; tries++) {
-    const a = rr() * Math.PI * 2, d = Math.sqrt(rr()) * LAWN.r0;
-    const x = Math.cos(a) * d, z = LAWN.cz + Math.sin(a) * d;
-    if (free(x, z)) spots.push([x, z, 0.9 + rr() * 0.8]);
-  }
+  const spots = textures.austinMeta.trees.filter(([x, z]) => free(x, z)).slice(0, isMobile ? 320 : 1100);
   const trunks = new THREE.InstancedMesh(trunkGeo, bark, spots.length);
   const crowns = crownGeos.map((g) => new THREE.InstancedMesh(g, leaf, spots.length));
   crowns.forEach((c) => { c.count = 0; });

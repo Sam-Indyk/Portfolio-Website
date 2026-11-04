@@ -1,14 +1,16 @@
 import * as THREE from "three";
 import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import Lenis from "lenis";
 import { gsap } from "gsap";
 import "./style.css";
 import { ITEMS, INDEX } from "./content.js";
 import { voteHTML, mountVote, unmountVote, motionIndex } from "./union.js";
 import { UNION_MOTIONS } from "./content.js";
-import { setLoadingManager } from "./pbr.js";
+import { setLoadingManager, loadTexture } from "./pbr.js";
 import { buildSpace, EARTH } from "./world/space.js";
 import { Rail, OUTRO_FROM, CUT_T, SURFACE_T } from "./rail.js";
+import { CUT_Z } from "./world/loop.js";
 
 const BASE = import.meta.env.BASE_URL;
 const isMobile = matchMedia("(pointer: coarse)").matches || innerWidth < 700;
@@ -31,6 +33,9 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.shadowMap.autoUpdate = false;       // the scene is static: render shadows once, on load
 
 const scene = new THREE.Scene();
+// Fog from the start (out of reach in orbit): adding it later would change every material's shader
+// variant at once and recompile the whole opening in one frame.
+scene.fog = new THREE.Fog(0x000000, 1e6, 2e6);
 scene.background = new THREE.Color(0x000000);
 const camera = new THREE.PerspectiveCamera(isMobile ? 55 : 40, innerWidth / innerHeight, 0.05, 14000);
 
@@ -54,27 +59,40 @@ function showProgress(f) {
 }
 const managerIdle = () => new Promise((done) => { const check = () => (loading.loaded >= loading.total ? done() : setTimeout(check, 60)); check(); });
 const fetchAs = (url, kind) => { manager.itemStart(url); return fetch(url).then((r) => r[kind]()).finally(() => manager.itemEnd(url)); };
-const loader = new THREE.TextureLoader(manager);
 setLoadingManager(manager);
 const res = isMobile ? "2k" : "4k";
 const textures = {};
-const loadTex = (key, url, srgb = true) => new Promise((done) => loader.load(url, (t) => {
+const loadTex = (key, url, srgb = true, upright = false) => new Promise((done) => loadTexture(url, (t) => {
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   textures[key] = t; done();
-}));
+}, upright));
 
 await Promise.all([
   loadTex(`day-${res}`, `${BASE}assets/earth/day-${res}.webp`),
   loadTex(`clouds-${res}`, `${BASE}assets/earth/clouds-${res}.webp`),
   loadTex("specular-2k", `${BASE}assets/earth/specular-2k.webp`, false),
-  loadTex("galaxies", `${BASE}assets/galaxies.webp`),
+  loadTex("galaxies", `${BASE}assets/galaxies.webp`, true, true),   // upright: eigen.js crops it on a canvas
 ]);
 const galaxyMeta = await fetchAs(`${BASE}assets/galaxies.json`, "json");
 const space = buildSpace({ textures, galaxyMeta, isMobile, portrait });
 scene.add(space.group);
 const pmrem = new THREE.PMREMGenerator(renderer);
 applyEnv(space.group, pmrem.fromScene(space.envScene, 0.02).texture, 1);
+// Environment maps compile their shaders on the GPU's main thread as they render (no parallel
+// compile), which froze the opening for a second or more mid-load. So they're made now, behind the
+// loader: the underground's room light, and a one-pixel run of an HDR sky through the same path the
+// plaza's sky light takes later, to compile its shaders.
+const roomEnv = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+{
+  const sky = new THREE.DataTexture(new Uint16Array(4 * 2 * 4), 4, 2, THREE.RGBAFormat, THREE.HalfFloatType);
+  sky.mapping = THREE.EquirectangularReflectionMapping;
+  sky.needsUpdate = true;
+  const s = new THREE.Scene();
+  s.background = sky;
+  pmrem.fromScene(s, 0, 0.1, 100).dispose();
+  sky.dispose();
+}
 for (const p of space.pickables) p.band = "space";
 const pickables = [...space.pickables];
 // The local world (sky over Austin, terrain, plaza, underground) arrives after the opening frame.
@@ -92,16 +110,65 @@ function applyEnv(group, env, intensity) {
 }
 
 const rail = new Rail({ portrait, aspect: innerWidth / innerHeight });
+const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+
+// The descent's shaders, a few materials per frame: each new program costs the main thread tens of
+// milliseconds, so compiling them all at once froze the opening for seconds. Lights are counted as the
+// local world will render (it shown, the orbit band hidden) only for the moment of each call, so the
+// frames in between still draw the opening.
+async function compileGradually() {
+  const objects = [];
+  local.traverse((o) => { if (o.material && (o.isMesh || o.isPoints || o.isLine || o.isSprite)) objects.push(o); });
+  const pending = new Set(), shown = [space.group.visible, local.visible];
+  for (let i = 0; i < objects.length;) {
+    const t0 = performance.now();
+    space.group.visible = false; local.visible = true;
+    while (i < objects.length && performance.now() - t0 < 8) {
+      const o = objects[i++];
+      for (const m of renderer.compile({ traverse: (f) => f(o), traverseVisible() {} }, camera, scene)) pending.add(m);
+    }
+    [space.group.visible, local.visible] = shown;
+    await nextFrame();
+  }
+  // Linking finishes off the main thread (KHR_parallel_shader_compile); wait for it here rather than
+  // stall on first use.
+  while (pending.size) {
+    for (const m of pending) if (renderer.properties.get(m).currentProgram?.isReady() ?? true) pending.delete(m);
+    await nextFrame();
+  }
+}
+
+// Then every texture the descent uses (including ones its shaders were given in onBeforeCompile),
+// a few milliseconds' worth per frame.
+async function uploadGradually() {
+  const all = new Set(Object.values(textures));
+  const add = (v) => { if (v?.isTexture && v.image && !v.isRenderTargetTexture) all.add(v); };
+  local.traverse((o) => {
+    for (const m of [].concat(o.material || [])) {
+      for (const v of Object.values(m)) add(v);
+      for (const u of Object.values(renderer.properties.get(m).uniforms || m.uniforms || {})) add(u?.value);
+    }
+  });
+  let t0 = performance.now();
+  for (const t of all) {
+    if (!t?.isTexture || !t.image) continue;
+    renderer.initTexture(t);
+    if (performance.now() - t0 > 6) { await nextFrame(); t0 = performance.now(); }
+  }
+}
 
 async function loadRest() {
   loading.base = loading.loaded;
   await Promise.all([
-    loadTex("seal", `${BASE}assets/au-seal.webp`),
-    loadTex("backdrop", `${BASE}assets/sky-backdrop.webp`, false),   // raw: the sky shader shows it as is
+    loadTex("seal", `${BASE}assets/au-seal.webp`, true, true),         // upright: also drawn on the banner
+    loadTex("backdrop", `${BASE}assets/sky-backdrop.webp`, false, true),   // raw (the sky shader shows it as is), and sampled on a canvas
     new RGBELoader(manager).loadAsync(`${BASE}assets/sky-1k.hdr`).then((t) => { textures.sky = t; }),
     fetchAs(`${BASE}assets/sky-backdrop.json`, "json").then((j) => { textures.backdropMeta = j; }),
     loadTex("naipFar", `${BASE}assets/austin/naip-far${isMobile ? "-2k" : ""}.webp`),
     loadTex("naipNear", `${BASE}assets/austin/naip-near.webp`),
+    loadTex("naipPlaza", `${BASE}assets/austin/naip-plaza.webp`),
+    loadTex("maskNear", `${BASE}assets/austin/mask-near.webp`, false),   // R water, G vegetation
+    loadTex("maskFar", `${BASE}assets/austin/mask-far.webp`, false),
     loadTex("texas", `${BASE}assets/austin/texas.webp`),
     fetchAs(`${BASE}assets/austin/austin.json`, "json").then((j) => { textures.austinMeta = j; }),
     fetchAs(`${BASE}assets/austin/dem.bin`, "arrayBuffer").then((b) => { textures.dem = b; }),
@@ -109,27 +176,33 @@ async function loadRest() {
   const [{ buildSurface }, { buildUnderground }, skyMod, { buildTerrain }, { buildPolytopia }] = await Promise.all([
     import("./world/surface.js"), import("./world/underground.js"), import("./world/sky.js"), import("./world/terrain.js"), import("./world/polytopia.js")]);
   DECK = skyMod.DECK;
+  // One piece per frame, so the opening keeps moving while the descent is assembled.
   sky = skyMod.buildSky({ textures, isMobile });
+  await nextFrame();
   terrain = buildTerrain({ textures, sky, isMobile, base: BASE });
   space.setTexas(textures.texas, textures.austinMeta.texas);
+  await nextFrame();
   island = await buildPolytopia({ base: BASE, fetchAs });
+  await nextFrame();
   // Phones pan along the full row. The sign by the walkway carries this visit's motion.
   surface = buildSurface({ textures, renderer, isMobile, base: BASE, motion: UNION_MOTIONS[motionIndex()].title });
   applyEnv(surface.group, surface.envMap, 1);
-  under = await buildUnderground({ renderer, isMobile, base: BASE, fetchAs });
+  await nextFrame();
+  under = await buildUnderground({ isMobile, base: BASE, fetchAs, nextFrame, envMap: roomEnv });
   applyEnv(under.group, under.envMap, 0.15);   // underground, image light is only a faint fill for metal
+  await nextFrame();
   // Fog stays on the scene for good; only its range changes. Its colour is the sky's own horizon.
-  scene.fog = new THREE.Fog(sky.horizon, 200, 3000);
+  scene.fog.color.set(sky.horizon);
   local = new THREE.Group();
   local.add(sky.group, terrain.group, island.group, surface.group, under.group);
+  local.visible = false;
   scene.add(local);
-  // Compile against the lights the local world will actually render with (the orbit band's hidden).
-  space.group.visible = false;
-  await renderer.compileAsync(scene, camera);
   for (const p of under.pickables) p.under = true;
   addPickables([...island.pickables, ...surface.pickables, ...under.pickables]);
-  // Material textures load on first use; wait for every one of them too.
+  // Material textures load on first use; wait for every one of them, then put it all on the GPU.
   await managerIdle();
+  await compileGradually();
+  await uploadGradually();
 }
 
 // Whether a pickable is in play from where the camera is: its band, and for the local world, close
@@ -164,7 +237,7 @@ function atmosphere(pose, t) {
     galaxyTagFade = 1 - sstep(0.11, 0.145, t);
     space.sun.intensity = 3.4;
     renderer.toneMappingExposure = 1.0;
-    if (scene.fog) { scene.fog.near = 1e6; scene.fog.far = 2e6; }
+    scene.fog.near = 1e6; scene.fog.far = 2e6;
     setClip(0.5, 14000);
     return;
   }
@@ -185,7 +258,11 @@ function atmosphere(pose, t) {
 }
 
 // ---------- scrolling ----------
-const lenis = new Lenis({ lerp: 0.085, wheelMultiplier: 0.9, touchMultiplier: 1.4 });
+// On touch-only devices Lenis listens to nothing: touch scrolling stays native (it only tracks the
+// position), so no touch ever waits on the main thread, which matters in Safari, where a busy page
+// otherwise couldn't scroll the panel. The page is locked by its lenis-stopped class instead.
+const touchOnly = matchMedia("(hover: none) and (pointer: coarse)").matches;
+const lenis = new Lenis({ lerp: 0.085, wheelMultiplier: 0.9, touchMultiplier: 1.4, eventsTarget: touchOnly ? document.createElement("div") : window });
 gsap.ticker.add((time) => lenis.raf(time * 1000));
 gsap.ticker.lagSmoothing(0);
 const progress = () => (lenis.limit > 0 ? clamp01(lenis.scroll / lenis.limit) : 0);
@@ -424,6 +501,11 @@ async function fillPanel(p) {
   }
 }
 
+// Whether an opaque overlay fills the screen (a demo; the panel on a phone, once the camera has
+// arrived): the scene isn't drawn then, which leaves the page free to scroll the overlay smoothly.
+let panelCovers = false;
+const covered = () => theatre.classList.contains("open") || (panelCovers && focus.mix > 0.999 && panel.classList.contains("open"));
+
 function open(p) {
   setHover(null);
   focus.active = true;
@@ -440,6 +522,8 @@ function open(p) {
   if (innerWidth > 800) focus.target.addScaledVector(right, dist * (p.shift ?? (["polytopia", "galaxy", "tunnel"].includes(p.id) ? 0.36 : 0.22)));
   gsap.to(focus, { mix: 1, duration: 1.6, ease: "power3.inOut" });
   fillPanel(p);
+  panelCovers = panel.offsetWidth >= innerWidth - 1;
+  document.body.classList.toggle("panel-covers", panelCovers);
   panel.classList.add("open");
   panel.setAttribute("aria-hidden", "false");
 }
@@ -447,6 +531,7 @@ function open(p) {
 function close() {
   if (!focus.active) return;
   unmountVote();
+  document.body.classList.remove("panel-covers");
   panel.classList.remove("open");
   panel.setAttribute("aria-hidden", "true");
   gsap.to(focus, { mix: 0, duration: 1.3, ease: "power3.inOut", onComplete: () => { focus.active = false; resumeScroll(); body.innerHTML = ""; } });
@@ -528,6 +613,7 @@ renderer.setAnimationLoop((t) => {
   const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
   if (lastT) { frameTimes.push(t - lastT); if (frameTimes.length > 240) frameTimes.splice(0, 120); }
   lastT = t;
+  if (!warm && covered()) return;
   if (warm) warmUp();
   else adapt(t);
   const pr = progress();
@@ -538,6 +624,10 @@ renderer.setAnimationLoop((t) => {
   if (band === "space") space.update(t, isMobile ? null : { x: mouse.sx, y: mouse.sy });
   else {
     sky.update(t); island.update(t, dt); surface.update(t);
+    // Heading for the Loop, the lawn in front of the section peels back to the cut face, so the ramp and
+    // the car on it are seen in section.
+    const peel = sstep(rail.follow[0] - 0.0175, rail.follow[0], pr);
+    terrain.setCut(peel > 0 ? THREE.MathUtils.lerp(CUT_Z + 70, CUT_Z, peel) : 1e5);
     // The DN600 creeps across as the descent goes deep, slowing as it reaches the centre.
     const run = clamp01((pr - rail.timeOf("tunnel")) / (rail.timeOf("dn600") - rail.timeOf("tunnel")));
     under.update(t, camera, 1 - (1 - run) * (1 - run), rail.loopS(pr));
@@ -550,10 +640,12 @@ renderer.setAnimationLoop((t) => {
 });
 
 await renderer.compileAsync(scene, camera);
+// The opening's images go up now, behind the loader, rather than stalling its first frames.
+for (const t of Object.values(textures)) renderer.initTexture(t);
 requestAnimationFrame(() => document.body.classList.add("ready"));
 const rest = loadRest();
 
-window.__site = { space, get surface() { return surface; }, get under() { return under; }, get sky() { return sky; }, get terrain() { return terrain; }, camera, rail, rest };
+window.__site = { space, get surface() { return surface; }, get under() { return under; }, get sky() { return sky; }, get terrain() { return terrain; }, camera, rail, rest, renderer, scene };
 window.__lenis = lenis;
 // Debug/screenshot hooks: ?t=0.5 jumps the rail, ?open=<id> opens a panel (?g=3 picks a galaxy), ?demo=<url>.
 const qs = new URLSearchParams(location.search);

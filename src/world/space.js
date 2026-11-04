@@ -11,7 +11,7 @@ export const SUN_SPACE = new THREE.Vector3(-0.45, 0.55, 0.7).normalize();
 export const SPACE_Y = 530;   // middle of the floating objects
 // Where Austin faces on the globe: low on its visible face, so the dive tips the camera ~25° down.
 export const AUSTIN_DIR = new THREE.Vector3(0, 0.8, 0.6).normalize();
-const AUSTIN_LL = [30.317, -97.758];
+const AUSTIN_LL = [30.2682, -97.7663];   // the plaza, on the Great Lawn in Zilker Park
 
 // Rotate the globe so a chosen lat/lon faces `dir`, north up.
 function orient(mesh, lat, lon, dir) {

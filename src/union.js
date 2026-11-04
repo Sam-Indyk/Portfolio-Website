@@ -1,4 +1,4 @@
-// The Austin Union's motions in the panel: step through past motions, vote Aye or No, see the running
+// The Austin Union's motions in the panel: step through past motions, vote Yea or Nay, see the running
 // tally. The chamber mirrors it (banner and lecterns, surface.js); tallies live in Supabase (votes.js).
 import { UNION_MOTIONS } from "./content.js";
 import { tallies, vote, myVote, rotation } from "./votes.js";
@@ -36,7 +36,7 @@ function render() {
   const status = failed ? "The tally is unavailable right now."
     : !counts ? "Loading the tally…"
     : rejected ? "Your vote didn't go through. Try again in a moment."
-    : total ? `${c.ayes} aye · ${c.noes} no` : "No votes yet. Cast the first.";
+    : total ? `${c.ayes} yea · ${c.noes} nay` : "No votes yet. Cast the first.";
   root.innerHTML = `
     <div class="vote-head mono">
       <span>The House debates · ${index + 1} of ${N}</span>
@@ -44,11 +44,11 @@ function render() {
     </div>
     <h3 class="vote-title serif">${m.title}</h3>
     <div class="vote-btns">
-      <button class="vote-btn aye${mine === "aye" ? " on" : ""}" data-side="aye" ${off}>Aye</button>
-      <button class="vote-btn no${mine === "no" ? " on" : ""}" data-side="no" ${off}>No</button>
+      <button class="vote-btn aye${mine === "aye" ? " on" : ""}" data-side="aye" ${off}>Yea</button>
+      <button class="vote-btn no${mine === "no" ? " on" : ""}" data-side="no" ${off}>Nay</button>
     </div>
     <div class="vote-bar${total ? "" : " empty"}"><i style="width:${share.toFixed(1)}%"></i></div>
-    <p class="vote-count mono">${status}${mine ? ` · You voted ${mine === "aye" ? "Aye" : "No"}` : ""}</p>`;
+    <p class="vote-count mono">${status}${mine ? ` · You voted ${mine === "aye" ? "Yea" : "Nay"}` : ""}</p>`;
   chamber?.show({ title: m.title, ayes: c.ayes, noes: c.noes, known: !!counts });
 }
 

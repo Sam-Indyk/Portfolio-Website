@@ -1,10 +1,31 @@
 // Poly Haven PBR textures (CC0) and a world-space triplanar material helper.
 import * as THREE from "three";
 
-const loader = new THREE.TextureLoader();
+let manager = THREE.DefaultLoadingManager;
 const cache = new Map();
 
-export function setLoadingManager(manager) { loader.manager = manager; }
+export function setLoadingManager(m) { manager = m; }
+
+// Images decode off the main thread, so a texture's first upload never stalls a frame: as ImageBitmaps
+// (flipped while decoding), or where those are unreliable (Safari, old Firefox; as in three's
+// GLTFLoader) as <img> decoded ahead with img.decode(). Returns the texture at once, like
+// TextureLoader.load; onLoad(texture) follows once it's ready to upload. upright: keep an <img> (for
+// textures that are also drawn on 2D canvases, where a pre-flipped bitmap would be upside down).
+const ff = navigator.userAgent.match(/firefox\/(\d+)/i);
+const useBitmaps = typeof createImageBitmap !== "undefined" && !/^((?!chrome|android).)*safari/i.test(navigator.userAgent) && !(ff && +ff[1] < 98);
+export function loadTexture(url, onLoad, upright = false) {
+  const t = new THREE.Texture();
+  const done = (image) => { t.image = image; t.needsUpdate = true; onLoad?.(t); };
+  if (useBitmaps && !upright) {
+    t.flipY = false;
+    new THREE.ImageBitmapLoader(manager).setOptions({ imageOrientation: "flipY", premultiplyAlpha: "none", colorSpaceConversion: "none" }).load(url, done);
+  } else {
+    manager.itemStart(`${url}#decode`);   // counted until decoded, not just downloaded
+    new THREE.ImageLoader(manager).load(url, (img) => img.decode().catch(() => {}).then(() => done(img)).finally(() => manager.itemEnd(`${url}#decode`)),
+      undefined, () => manager.itemEnd(`${url}#decode`));
+  }
+  return t;
+}
 
 // {map, normalMap, roughnessMap} for public/assets/tex/<id>/, tiled `repeat` times. Each map is
 // only downloaded when something actually reads it.
@@ -12,7 +33,7 @@ export function pbr(id, repeat = 1, base = "/") {
   const key = `${id}@${repeat}`;
   if (cache.has(key)) return cache.get(key);
   const load = (name, srgb) => {
-    const t = loader.load(`${base}assets/tex/${id}/${name}.webp`);
+    const t = loadTexture(`${base}assets/tex/${id}/${name}.webp`);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(repeat, repeat);
     t.anisotropy = 8;
